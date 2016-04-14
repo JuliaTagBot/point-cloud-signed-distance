@@ -4,6 +4,8 @@ using GeometryTypes
 using AffineTransforms
 using SpatialFields
 
+export Kinect, raycast_depths, raycast_points
+
 function generateKinectRays(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449)
     camera_cx = cols / 2.
     camera_cy = rows / 2.
