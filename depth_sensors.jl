@@ -7,8 +7,8 @@ using SpatialFields
 export Kinect, raycast_depths, raycast_points
 
 function generateKinectRays(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449)
-    camera_cx = cols / 2.
-    camera_cy = rows / 2.
+    camera_cx = (cols + 1) / 2.
+    camera_cy = (rows + 1) / 2.
     tan_vert_fov = tan(vertical_fov)
     tan_hor_fov = tan(horizontal_fov)
 
@@ -36,15 +36,19 @@ Kinect(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449) = DepthSensor(gen
 
 function doRaycast(camera_origin, camera_view_ray, field::ScalarField)
     EPS = 1E-5
-    SAFE_RATE = 1.0
-    SAFE_ITER_LIMIT = 10
+    SAFE_RATE = 0.1
+    SAFE_ITER_LIMIT = 15
     dist = 0
     k = 0
     while (abs(evaluate(field, camera_origin + dist*camera_view_ray)) > EPS && k < SAFE_ITER_LIMIT)
-        dist = dist - SAFE_RATE*evaluate(field, camera_origin + dist*camera_view_ray)
+        dist = dist + SAFE_RATE*evaluate(field, camera_origin + dist*camera_view_ray)
         k += 1
     end
-    return dist
+    if abs(evaluate(field, camera_origin + dist*camera_view_ray)) > 1000*EPS
+        return NaN
+    else
+        return dist
+    end
 end
 
 function raycast_depths{N, T}(surface::ScalarField{N, T}, sensor::DepthSensor, sensor_origin::AffineTransform)
@@ -61,10 +65,12 @@ end
 
 function raycast_points{N, T}(surface::ScalarField{N, T}, sensor::DepthSensor, sensor_origin::AffineTransform)
     distances = raycast_depths(surface, sensor, sensor_origin)
-    points = Array{Point{N, T}}(size(distances, 1), size(distances, 2))
+    points = Point{N, T}[]
     for row in 1:size(distances, 1)
         for col in 1:size(distances, 2)
-            points[row, col] = sensor_origin * convert(Vector, distances[row, col] * sensor.rays[row, col] / norm(sensor.rays[row, col]))
+            if !isnan(distances[row, col])
+                push!(points, sensor_origin * convert(Vector, distances[row, col] * sensor.rays[row, col] / norm(sensor.rays[row, col])))
+            end
         end
     end
     points
