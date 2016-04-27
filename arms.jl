@@ -128,7 +128,7 @@ function skin{T}(arm::PlanarArm, joint_angles::Vector{T})
         end_mode(lcmgl)
         switch_buffer(lcmgl)
     end
-    skin = InterpolatingSurface(points, values)
+    skin = InterpolatingSurface(points, values, SpatialFields.XSquaredLogX())
 end
 
 
