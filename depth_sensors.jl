@@ -37,11 +37,13 @@ Kinect(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449) = DepthSensor(gen
 function doRaycast(camera_origin, camera_view_ray, field::ScalarField)
     EPS = 1E-5
     SAFE_RATE = 0.1
-    SAFE_ITER_LIMIT = 15
+    SAFE_ITER_LIMIT = 30
     dist = 0
     k = 0
-    while (abs(evaluate(field, camera_origin + dist*camera_view_ray)) > EPS && k < SAFE_ITER_LIMIT)
-        dist = dist + SAFE_RATE*evaluate(field, camera_origin + dist*camera_view_ray)
+    sample_point = camera_origin + dist*camera_view_ray
+    while (abs(evaluate(field, sample_point)) > EPS && k < SAFE_ITER_LIMIT)
+        dist = dist + SAFE_RATE*evaluate(field, sample_point)
+        sample_point = camera_origin + dist *camera_view_ray
         k += 1
     end
     if abs(evaluate(field, camera_origin + dist*camera_view_ray)) > 1000*EPS
