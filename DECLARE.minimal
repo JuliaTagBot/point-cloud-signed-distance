@@ -1,0 +1,12 @@
+DataFrames
+AffineTransforms
+GeometryTypes
+PyCall
+ForwardDiff
+Interact
+ProfileView
+Gadfly
+FixedSizeArrays
+git@github.com:rdeits/DrakeVisualizer.jl.git 18ff957ab436c3f55985dad1f23ac5c33c6185ab
+git@github.com:rdeits/LCMGL.jl.git 664762840d0bfc1b77a191c79fb7e3a0ed9aa9db
+git@github.com:rdeits/SpatialFields.jl.git 67c4525e386dcadef7e42c72920b7ea0aa7dbb12
