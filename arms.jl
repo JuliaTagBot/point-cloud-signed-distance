@@ -2,12 +2,14 @@ module Arms
 
 import DrakeVisualizer
 import DrakeVisualizer: GeometryData
+using RigidBodyDynamics
 using AffineTransforms
 using GeometryTypes
 using PyCall
 using SpatialFields
 using LCMGL
 import ForwardDiff: value
+import DataStructures: OrderedDict
 import Base: convert
 
 function __init__()
@@ -44,21 +46,39 @@ function convex_hull{T}(nodes::Vector{Point{3, T}})
     return faces
 end
 
-type Link
-    length
+# type Link
+#     length
+#     surface_geometry::GeometryData
+#     skeleton_points::Vector{Point{3, Float64}}
+# end
+
+type Limb
     surface_geometry::GeometryData
     skeleton_points::Vector{Point{3, Float64}}
 end
 
-type PlanarArm
-    links::Vector{Link}
+type Model
+    mechanism::Mechanism
+    limbs::OrderedDict{RigidBody, Limb}
 end
+
 function two_link_arm()
-    links = Array{Link}(2)
+    limbs = OrderedDict{RigidBody, Limb}()
 
     link_length = 1.0
     radius = 0.1
+
+    mechanism = Mechanism{Float64}("world")
+    parent = root_body(mechanism)
+
     for i = 1:2
+        joint = Joint("joint$(i)", Revolute(Vec(0.,0,1)))
+        joint_to_parent = Transform3D(joint.frameBefore, parent.frame, Vec(link_length, 0., 0))
+        body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body$(i)")))
+        body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
+        attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
+        parent = body
+
         surface_points = Point{3, Float64}[]
         skeleton_points = Point{3, Float64}[]
         for x = linspace(0.1*link_length, 0.9*link_length, 3)
@@ -79,57 +99,59 @@ function two_link_arm()
         for x = linspace(0.2*link_length, 0.8*link_length, 3)
             push!(skeleton_points, Point{3, Float64}(x, 0, 0))
         end
-        links[i] = Link(link_length, surface_geometry_data, skeleton_points)
+
+        limbs[body] = Limb(surface_geometry_data, skeleton_points)
     end
-    PlanarArm(links)
+
+    Model(mechanism, limbs)
 end
 
-function link_origins(arm::PlanarArm, joint_angles)
-    transforms = Array{AffineTransform}(length(arm.links))
-    transforms[1] = tformrotate([0;0;1], joint_angles[1])
-    for i = 2:length(arm.links)
-        transforms[i] = transforms[i-1] * tformtranslate([arm.links[i-1].length; 0; 0]) * tformrotate([0.;0;1], joint_angles[i])
-    end
-    transforms
-end
-
-function convert(::Type{DrakeVisualizer.Robot}, arm::PlanarArm)
-    links = [DrakeVisualizer.Link([link.surface_geometry], "link_$(i)") for (i, link) in enumerate(arm.links)]
-    return DrakeVisualizer.Robot(links)
-end
-
-function skin{T}(arm::PlanarArm, joint_angles::Vector{T})
-    origins = link_origins(arm, joint_angles)
-    surface_points = Point{3, T}[]
-    skeleton_points = Point{3, T}[]
-    for (i, link) in enumerate(arm.links)
-        for vertex in vertices(link.surface_geometry.geometry)
-            push!(surface_points, origins[i] * convert(Vector, vertex))
-        end
-        for point in link.skeleton_points
-            push!(skeleton_points, origins[i] * convert(Vector, point))
-        end
-    end
-    points = vcat(surface_points, skeleton_points)
-    values = vcat(zeros(length(surface_points)), -1 + zeros(length(skeleton_points)))
-    LCMGLClient("points") do lcmgl
-        color(lcmgl, 0, 0, 0)
-        point_size(lcmgl, 5)
-        begin_mode(lcmgl, LCMGL.POINTS)
-        for (i, point) in enumerate(points)
-            if values[i] == 0
-                color(lcmgl, 0, 0, 0)
-            else
-                color(lcmgl, 0, 0, 1)
-            end
-            vertex(lcmgl, map(value, convert(Vector, point))...)
-            # sphere(lcmgl, convert(Vector, point), 0.02, 10, 10)
-        end
-        end_mode(lcmgl)
-        switch_buffer(lcmgl)
-    end
-    skin = InterpolatingSurface(points, values, SpatialFields.XSquaredLogX())
-end
+# function link_origins(arm::PlanarArm, joint_angles)
+#     transforms = Array{AffineTransform}(length(arm.links))
+#     transforms[1] = tformrotate([0;0;1], joint_angles[1])
+#     for i = 2:length(arm.links)
+#         transforms[i] = transforms[i-1] * tformtranslate([arm.links[i-1].length; 0; 0]) * tformrotate([0.;0;1], joint_angles[i])
+#     end
+#     transforms
+# end
+#
+# function convert(::Type{DrakeVisualizer.Robot}, arm::PlanarArm)
+#     links = [DrakeVisualizer.Link([link.surface_geometry], "link_$(i)") for (i, link) in enumerate(arm.links)]
+#     return DrakeVisualizer.Robot(links)
+# end
+#
+# function skin{T}(arm::PlanarArm, joint_angles::Vector{T})
+#     origins = link_origins(arm, joint_angles)
+#     surface_points = Point{3, T}[]
+#     skeleton_points = Point{3, T}[]
+#     for (i, link) in enumerate(arm.links)
+#         for vertex in vertices(link.surface_geometry.geometry)
+#             push!(surface_points, origins[i] * convert(Vector, vertex))
+#         end
+#         for point in link.skeleton_points
+#             push!(skeleton_points, origins[i] * convert(Vector, point))
+#         end
+#     end
+#     points = vcat(surface_points, skeleton_points)
+#     values = vcat(zeros(length(surface_points)), -1 + zeros(length(skeleton_points)))
+#     LCMGLClient("points") do lcmgl
+#         color(lcmgl, 0, 0, 0)
+#         point_size(lcmgl, 5)
+#         begin_mode(lcmgl, LCMGL.POINTS)
+#         for (i, point) in enumerate(points)
+#             if values[i] == 0
+#                 color(lcmgl, 0, 0, 0)
+#             else
+#                 color(lcmgl, 0, 0, 1)
+#             end
+#             vertex(lcmgl, map(value, convert(Vector, point))...)
+#             # sphere(lcmgl, convert(Vector, point), 0.02, 10, 10)
+#         end
+#         end_mode(lcmgl)
+#         switch_buffer(lcmgl)
+#     end
+#     skin = InterpolatingSurface(points, values, SpatialFields.XSquaredLogX())
+# end
 
 
 end
