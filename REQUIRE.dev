@@ -2,11 +2,13 @@ IJulia
 Interact
 Gadfly
 DataFrames
+ProfileView
+Reactive 0.3.3
 
+git@github.com:rdeits/PyLCM.jl.git ab7b17c4a5b6b019bb89419c4f109f108399a4eb
 git@github.com:rdeits/Quaternions.jl.git d183ac251c7277c287c8a660fd29b21313841c09
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git 56716c7c0e179f6d555279f95d38430949e7915d
 git@github.com:rdeits/LCMGL.jl.git 664762840d0bfc1b77a191c79fb7e3a0ed9aa9db
 git@github.com:rdeits/SpatialFields.jl.git 8ac7d2a13b7916486de518fd7e821d4fbe4ce7a5
 git@github.com:tkoolen/RigidBodyDynamics.jl.git f3906c3da5df4f26f3e7a558115cf5d1801198ef
-git@github.com:rdeits/DrakeVisualizer.jl.git 0766c8c93da57dc35dd6290ca4fc16225be01cf7
-git@github.com:JuliaLang/Reactive.jl.git v0.3.3
+git@github.com:rdeits/DrakeVisualizer.jl.git e808a52eb9cb28176c0d7ff5741e57962fa73883
