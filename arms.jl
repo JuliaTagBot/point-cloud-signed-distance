@@ -1,15 +1,12 @@
 module Arms
 
-import DrakeVisualizer
-import DrakeVisualizer: GeometryData, draw, Visualizer
+import DrakeVisualizer: GeometryData, draw, Visualizer, Link
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!
 using AffineTransforms
-using GeometryTypes
-using PyCall
-using SpatialFields
+import GeometryTypes: HyperRectangle, HyperSphere, Vec, Point, HomogenousMesh
+import SpatialFields: InterpolatingSurface, XSquaredLogX
 import Quaternions: axis, angle
-using LCMGL
 import ColorTypes
 import ForwardDiff: value
 import DataStructures: OrderedDict
@@ -17,39 +14,7 @@ import Base: convert
 
 convert(::Type{AffineTransform}, T::Transform3D) = tformtranslate(convert(Vector, T.trans)) * tformrotate(axis(T.rot), angle(T.rot))
 
-function __init__()
-    const global spatial = pyimport("scipy.spatial")
-end
-
 value(x::Real) = x
-
-function convex_hull{T}(nodes::Vector{Point{3, T}})
-    hull = spatial[:ConvexHull](hcat(map(x -> convert(Vector, x), nodes)...)')
-    simplices = hull[:simplices]
-    simplices += 1
-
-    faces = Face{3, Int, 0}[]
-    # Reorient simplices so that normals always point out from the hull
-    for i = 1:size(simplices, 1)
-        v = Vector{T}[nodes[simplices[i, j]] for j in 1:size(simplices, 2)]
-
-        # Given a face of a convex hull, all of the points in the body must be on the same side of that face. So in theory, we just need to pick one point not on the face and check which side it's on. But to attempt to be robust to numerical issues, we'll actually sum the dot product with the normal for every point in the body, and check whether that sum is positive or negative. If this becomes a performance bottleneck, we can revisit it later.
-        n = Point{3, T}(cross(v[2] - v[1], v[3] - v[1]))
-        b = dot(n, nodes[simplices[i, 1]])
-        total = zero(T)
-        for j = 1:length(nodes)
-            total += dot(n, nodes[j]) - b
-        end
-        if total < 0
-            # Then the normal is pointing the right way
-            push!(faces, Face{3, Int, 0}((simplices[i,:])...))
-        else
-            # Otherwise the normal is pointing the wrong way, so we flip the face
-            push!(faces, Face{3, Int, 0}((simplices[i,end:-1:1])...))
-        end
-    end
-    return faces
-end
 
 type Limb
     surface_points::Vector{Point3D}
@@ -144,21 +109,21 @@ end
 # end
 #
 function draw(arm::Model, state::ModelState)
-    links = Vector{DrakeVisualizer.Link}()
+    links = Vector{Link}()
     for (i, (body, limb)) in enumerate(arm.limbs)
-        geometries = Vector{DrakeVisualizer.GeometryData}()
+        geometries = Vector{GeometryData}()
         for (j, surface_point) in enumerate(limb.surface_points)
             pose = surface_point + state.limb_deformations[i][j]
-            push!(geometries, DrakeVisualizer.GeometryData(GeometryTypes.HyperSphere(Point(0.,0,0), 0.01), tformtranslate(convert(Vector, pose.v)), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
+            push!(geometries, GeometryData(HyperSphere(Point(0.,0,0), 0.01), tformtranslate(convert(Vector, pose.v)), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
         end
         for skeleton_point in limb.skeleton_points
-            push!(geometries, DrakeVisualizer.GeometryData(GeometryTypes.HyperSphere(Point(0.,0,0), 0.01), tformtranslate(convert(Vector, skeleton_point.v)), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
+            push!(geometries, GeometryData(HyperSphere(Point(0.,0,0), 0.01), tformtranslate(convert(Vector, skeleton_point.v)), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
         end
-        push!(links, DrakeVisualizer.Link(geometries, body.frame.name))
+        push!(links, Link(geometries, body.frame.name))
     end
 
     surface = skin(arm, state)
-    push!(links, DrakeVisualizer.Link([DrakeVisualizer.GeometryData(convert(HomogenousMesh, surface))], "skin"))
+    push!(links, Link([GeometryData(convert(HomogenousMesh, surface))], "skin"))
 
     vis = Visualizer(links)
 
@@ -191,23 +156,7 @@ function skin{D, C}(arm::Model, state::ModelState{D, C})
 
     points = vcat(surface_points, skeleton_points)
     values = vcat(zeros(length(surface_points)), -1 + zeros(length(skeleton_points)))
-    # LCMGLClient("points") do lcmgl
-    #     color(lcmgl, 0, 0, 0)
-    #     point_size(lcmgl, 5)
-    #     begin_mode(lcmgl, LCMGL.POINTS)
-    #     for (i, point) in enumerate(points)
-    #         if values[i] == 0
-    #             color(lcmgl, 0, 0, 0)
-    #         else
-    #             color(lcmgl, 0, 0, 1)
-    #         end
-    #         vertex(lcmgl, map(value, convert(Vector, point))...)
-    #         # sphere(lcmgl, convert(Vector, point), 0.02, 10, 10)
-    #     end
-    #     end_mode(lcmgl)
-    #     switch_buffer(lcmgl)
-    # end
-    skin = InterpolatingSurface(points, values, SpatialFields.XSquaredLogX())
+    skin = InterpolatingSurface(points, values, XSquaredLogX())
 end
 
 
