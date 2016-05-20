@@ -4,7 +4,7 @@ import DrakeVisualizer: GeometryData, draw, Visualizer, Link
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!
 using AffineTransforms
-import GeometryTypes: HyperRectangle, HyperSphere, Vec, Point, HomogenousMesh
+import GeometryTypes: HyperRectangle, HyperSphere, Vec, Point, HomogenousMesh, HyperCube
 import SpatialFields: InterpolatingSurface, XSquaredLogX
 import Quaternions: axis, angle
 import ColorTypes
@@ -108,27 +108,31 @@ end
 #     return DrakeVisualizer.Robot(links)
 # end
 #
-function draw(arm::Model, state::ModelState)
+function draw(arm::Model, state::ModelState, draw_skin::Bool=true)
     links = Vector{Link}()
     for (i, (body, limb)) in enumerate(arm.limbs)
         geometries = Vector{GeometryData}()
         for (j, surface_point) in enumerate(limb.surface_points)
             pose = surface_point + state.limb_deformations[i][j]
-            push!(geometries, GeometryData(HyperSphere(Point(0.,0,0), 0.01), tformtranslate(convert(Vector, pose.v)), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
+            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.01), tformtranslate(convert(Vector, pose.v)), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
         end
         for skeleton_point in limb.skeleton_points
-            push!(geometries, GeometryData(HyperSphere(Point(0.,0,0), 0.01), tformtranslate(convert(Vector, skeleton_point.v)), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
+            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.01), tformtranslate(convert(Vector, skeleton_point.v)), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
         end
         push!(links, Link(geometries, body.frame.name))
     end
 
-    surface = skin(arm, state)
-    push!(links, Link([GeometryData(convert(HomogenousMesh, surface))], "skin"))
+    if draw_skin
+        surface = skin(arm, state)
+        push!(links, Link([GeometryData(convert(HomogenousMesh, surface))], "skin"))
+    end
 
     vis = Visualizer(links)
 
     origins = link_origins(arm, state)
-    push!(origins, tformeye(3));
+    if draw_skin
+        push!(origins, tformeye(3));
+    end
     draw(vis, origins)
 end
 
