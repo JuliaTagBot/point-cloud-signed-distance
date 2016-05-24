@@ -49,9 +49,19 @@ function ModelState{C, D}(model::Model, joint_angles::Vector{C}, deformations::V
     ModelState(mechanism_state, deformations_in_frames)
 end
 
-function ModelState(model::Model, ConfigurationType=Float64, DeformationType=Float64)
-    joint_angles = zeros(ConfigurationType, num_positions(model.mechanism))
+function zero_configuration(model::Model, ConfigurationType=Float64, DeformationType=Float64)
+    joint_angles = Vector{ConfigurationType}()
+    for vertex in model.mechanism.toposortedTree[2:end]
+        joint = vertex.edgeToParentData
+        append!(joint_angles, RigidBodyDynamics.zero_configuration(joint, ConfigurationType))
+    end
     deformations = Vector{Vec{3, DeformationType}}[Vec{3, DeformationType}[0 for point in limb.surface_points] for (body, limb) in model.limbs]
+    joint_angles, deformations
+end
+
+
+function ModelState(model::Model, ConfigurationType=Float64, DeformationType=Float64)
+    joint_angles, deformations = zero_configuration(model, ConfigurationType, DeformationType)
     ModelState(model, joint_angles, deformations)
 end
 
