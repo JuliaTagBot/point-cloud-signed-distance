@@ -4,8 +4,8 @@ Gadfly
 DataFrames
 ProfileView
 Reactive 0.3.3
+PyLCM 0.0.3
 
-git@github.com:rdeits/PyLCM.jl.git ab7b17c4a5b6b019bb89419c4f109f108399a4eb
 git@github.com:rdeits/Quaternions.jl.git d183ac251c7277c287c8a660fd29b21313841c09
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git 56716c7c0e179f6d555279f95d38430949e7915d
 git@github.com:rdeits/LCMGL.jl.git 664762840d0bfc1b77a191c79fb7e3a0ed9aa9db
