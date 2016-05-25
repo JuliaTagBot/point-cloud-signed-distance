@@ -36,8 +36,8 @@ Kinect(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449) = DepthSensor(gen
 
 function doRaycast(camera_origin, camera_view_ray, field::ScalarField)
     EPS = 1E-5
-    SAFE_RATE = 0.1
-    SAFE_ITER_LIMIT = 30
+    SAFE_RATE = 0.5
+    SAFE_ITER_LIMIT = 60
     dist = 0
     k = 0
     sample_point = camera_origin + dist*camera_view_ray
@@ -51,6 +51,7 @@ function doRaycast(camera_origin, camera_view_ray, field::ScalarField)
     else
         return dist
     end
+    return dist
 end
 
 function raycast_depths{N, T}(surface::ScalarField{N, T}, sensor::DepthSensor, sensor_origin::AffineTransform)

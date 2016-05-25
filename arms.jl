@@ -15,6 +15,8 @@ import Base: convert
 convert(::Type{AffineTransform}, T::Transform3D) = tformtranslate(convert(Vector, T.trans)) * tformrotate(axis(T.rot), angle(T.rot))
 
 value(x::Real) = x
+value{N}(tform::AffineTransform{Float64, N}) = tform
+value{T, N}(tform::AffineTransform{T, N}) = AffineTransform(map(value, tform.scalefwd), map(value, tform.offset))
 
 type Limb
     surface_points::Vector{Point3D}
@@ -124,10 +126,10 @@ function draw(arm::Model, state::ModelState, draw_skin::Bool=true)
         geometries = Vector{GeometryData}()
         for (j, surface_point) in enumerate(limb.surface_points)
             pose = surface_point + state.limb_deformations[i][j]
-            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.01), tformtranslate(convert(Vector, pose.v)), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
+            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.1), tformtranslate(map(value, convert(Vector, pose.v))), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
         end
         for skeleton_point in limb.skeleton_points
-            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.01), tformtranslate(convert(Vector, skeleton_point.v)), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
+            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.1), tformtranslate(map(value, convert(Vector, skeleton_point.v))), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
         end
         push!(links, Link(geometries, body.frame.name))
     end
@@ -143,7 +145,7 @@ function draw(arm::Model, state::ModelState, draw_skin::Bool=true)
     if draw_skin
         push!(origins, tformeye(3));
     end
-    draw(vis, origins)
+    draw(vis, map(value, origins))
 end
 
 
