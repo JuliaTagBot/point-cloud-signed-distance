@@ -4,6 +4,7 @@ import DrakeVisualizer: GeometryData, draw, Visualizer, Link
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!
 using AffineTransforms
+using LCMGL
 import GeometryTypes: HyperRectangle, HyperSphere, Vec, Point, HomogenousMesh, HyperCube
 import SpatialFields: InterpolatingSurface, XSquaredLogX
 import Quaternions: axis, angle
@@ -120,32 +121,43 @@ end
 #     return DrakeVisualizer.Robot(links)
 # end
 #
-function draw(arm::Model, state::ModelState, draw_skin::Bool=true)
-    links = Vector{Link}()
+function draw{D, C}(arm::Model, state::ModelState{D, C}, draw_skin::Bool=true)
+    surface_points = Point{3, promote_type(D, C)}[]
+    skeleton_points = Point{3, promote_type(D, C)}[]
+
     for (i, (body, limb)) in enumerate(arm.limbs)
-        geometries = Vector{GeometryData}()
-        for (j, surface_point) in enumerate(limb.surface_points)
-            pose = surface_point + state.limb_deformations[i][j]
-            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.1), tformtranslate(map(value, convert(Vector, pose.v))), ColorTypes.RGBA{Float64}(1.0, 0.0, 0.0, 0.5)))
+        for (j, point) in enumerate(limb.surface_points)
+            push!(surface_points, RigidBodyDynamics.transform(state.mechanism_state, point + state.limb_deformations[i][j], root_frame(arm.mechanism)).v)
         end
-        for skeleton_point in limb.skeleton_points
-            push!(geometries, GeometryData(HyperCube(Vec{3, Float64}(0.,0,0), 0.1), tformtranslate(map(value, convert(Vector, skeleton_point.v))), ColorTypes.RGBA{Float64}(0.0, 0.0, 1.0, 0.5)))
+    end
+    for (i, (body, limb)) in enumerate(arm.limbs)
+        for (j, point) in enumerate(limb.skeleton_points)
+            push!(skeleton_points, RigidBodyDynamics.transform(state.mechanism_state, point, root_frame(arm.mechanism)).v)
         end
-        push!(links, Link(geometries, body.frame.name))
+    end
+
+    LCMGLClient("points") do lcmgl
+        point_size(lcmgl, 10)
+        color(lcmgl, 1, 0, 0)
+        begin_mode(lcmgl, LCMGL.POINTS)
+        for point in surface_points
+            vertex(lcmgl, map(value, point)...)
+        end
+        end_mode(lcmgl)
+        color(lcmgl, 0, 0, 1)
+        begin_mode(lcmgl, LCMGL.POINTS)
+        for point in skeleton_points
+            vertex(lcmgl, map(value, point)...)
+        end
+        end_mode(lcmgl)
+        switch_buffer(lcmgl)
     end
 
     if draw_skin
         surface = skin(arm, state)
-        push!(links, Link([GeometryData(convert(HomogenousMesh, surface))], "skin"))
+        # push!(links, Link([GeometryData(convert(HomogenousMesh, surface))], "skin"))
+        Visualizer([Link([GeometryData(convert(HomogenousMesh, surface))], "skin")])
     end
-
-    vis = Visualizer(links)
-
-    origins = link_origins(arm, state)
-    if draw_skin
-        push!(origins, tformeye(3));
-    end
-    draw(vis, map(value, origins))
 end
 
 
