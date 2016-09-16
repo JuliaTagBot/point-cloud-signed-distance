@@ -20,5 +20,5 @@ git@github.com:JuliaLang/Interact.jl 77cd0eb8721e19314d19ae506cf77b68c14d662e
 git@github.com:tkoolen/RigidBodyDynamics.jl.git 5755eb0138f43a5162463f8e4f5b95f77ddbbc68
 
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git 3d8dfdbfe4266c4c301db32665d23502c3c822d6
-git@github.com:rdeits/SpatialFields.jl.git cfd2a64eb4fd7869ecd15be12f9bc416f11544e3
+git@github.com:rdeits/SpatialFields.jl.git b02cf96f171a466aebd590b9349f6fb15053381c
 git@github.com:rdeits/DrakeVisualizer.jl.git 9d00cb0eac5ff6570aec3d7d6e77403aebc3eee2

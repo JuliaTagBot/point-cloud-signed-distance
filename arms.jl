@@ -39,22 +39,6 @@ end
 
 ModelState{C, D}(mechanism_state::MechanismState{C}, deformations::Vector{Vector{FreeVector3D{D}}}) = ModelState{C, D}(mechanism_state, deformations)
 
-# abstract VectorWrapper{T} <: AbstractVector{T}
-#
-# Base.size(v::VectorWrapper) = size(v.data)
-# Base.getindex(v::VectorWrapper, i::Int) = Base.getindex(v.data, i)
-# Base.getindex{N}(v::VectorWrapper, I::Vararg{Int, N}) = getindex(v.data, I)
-# Base.setindex!(v::VectorWrapper, x, i::Int) = setindex!(v.data, x, i)
-# Base.setindex!{N}(v::VectorWrapper, x, I::Vararg{Int, N}) = setindex!(v.data, x, I)
-#
-# type LimbDeformations{T} <: VectorWrapper{SVector{3, T}}
-#     data::Vector{SVector{3, T}}
-# end
-#
-# type ModelDeformations{T} <: VectorWrapper{LimbDeformations{T}}
-#     data::Vector{LimbDeformations{T}}
-# end
-
 function ModelState{C, D}(model::Model, joint_angles::Vector{C}, deformations::Vector{Vector{SVector{3, D}}})
     mechanism_state = MechanismState(C, model.mechanism)
     set_configuration!(mechanism_state, joint_angles)
@@ -178,11 +162,15 @@ function draw{D, C}(arm::Model, state::ModelState{D, C}, draw_skin::Bool=true)
     end
 
     if draw_skin
-        surface = skin(arm, state)
-        lb = @SVector [minimum(p[i] for p in field.points) for i in 1:3]
-        ub = @SVector [maximum(p[i] for p in field.points) for i in 1:3]
-        geometry = GeometryData(surface, lb, ub)
-        Visualizer([Link([geometry], "skin")])
+        geometries = []
+        for iso_level = [0.0, 0.5, 1.0]
+            surface = skin(arm, state)
+            lb = @SVector [minimum(p[i] for p in surface.points) for i in 1:3]
+            ub = @SVector [maximum(p[i] for p in surface.points) for i in 1:3]
+            widths = ub - lb
+            push!(geometries, GeometryData(surface, lb - 0.5 * widths, ub + 0.5 * widths, iso_level))
+        end
+        Visualizer([Link(geometries, "skin")])
     end
 end
 
