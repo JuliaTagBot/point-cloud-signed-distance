@@ -1,8 +1,7 @@
 module DepthSensors
 
-using GeometryTypes
-using AffineTransforms
-using SpatialFields
+using CoordinateTransformations
+import StaticArrays: SVector
 
 export Kinect, raycast_depths, raycast_points
 
@@ -12,67 +11,82 @@ function generateKinectRays(rows, cols, vertical_fov=0.4682, horizontal_fov=0.54
     tan_vert_fov = tan(vertical_fov)
     tan_hor_fov = tan(horizontal_fov)
 
-    rays = Array{Point{3, Float64}}(rows, cols)
+    rays = Array{SVector{3, Float64}}(rows, cols)
 
     for v in 1:rows
         for u in 1:cols
-            rays[v, u] = Point{3, Float64}(
+            ray = SVector{3, Float64}(
             (u - camera_cx) * tan_vert_fov / camera_cx,
             (v - camera_cy) * tan_hor_fov / camera_cy,
                     1.0
                 )
-            rays[v, u] /= norm(rays[v, u])
+            ray = normalize(ray)
+            rays[v, u] = ray
         end
     end
     return rays
 end
 
 type DepthSensor
-    rays::Array{Point{3, Float64}, 2}
+    rays::Array{SVector{3, Float64}, 2}
 
 end
 
 Kinect(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449) = DepthSensor(generateKinectRays(rows, cols, vertical_fov, horizontal_fov))
 
-function doRaycast(camera_origin, camera_view_ray, field::ScalarField)
+function doRaycast(camera_origin, camera_view_ray, field::Function)
     EPS = 1E-5
     SAFE_RATE = 0.5
     SAFE_ITER_LIMIT = 60
     dist = 0
     k = 0
+    estimated_gradient = -1
     sample_point = camera_origin + dist*camera_view_ray
-    while (abs(evaluate(field, sample_point)) > EPS && k < SAFE_ITER_LIMIT)
-        dist = dist + SAFE_RATE*evaluate(field, sample_point)
-        sample_point = camera_origin + dist *camera_view_ray
+    last_value = field(sample_point)
+    while (abs(last_value) > EPS && k < SAFE_ITER_LIMIT)
+        step = -last_value / estimated_gradient
+        step = sign(step) * min(SAFE_RATE, abs(step))
+        dist += step
+        sample_point = camera_origin + dist * camera_view_ray
+        value = field(sample_point)
+        estimated_gradient = (value - last_value) / step
+        # @show dist last_value value estimated_gradient step
+        last_value = value
         k += 1
     end
-    if abs(evaluate(field, camera_origin + dist*camera_view_ray)) > 1000*EPS
+    if abs(field(camera_origin + dist*camera_view_ray)) > 1000*EPS
         return NaN
     else
         return dist
     end
-    return dist
 end
 
-function raycast_depths{N, T}(surface::ScalarField{N, T}, sensor::DepthSensor, sensor_origin::AffineTransform)
-    distances = similar(sensor.rays, T)
-    for row in 1:size(sensor.rays, 1)
-        for col in 1:size(sensor.rays, 2)
-            camera_view_ray = sensor_origin.scalefwd * convert(Vector, sensor.rays[row, col])
-            camera_view_ray /= norm(camera_view_ray)
-            distances[row, col] = doRaycast(sensor_origin.offset, camera_view_ray, surface)
-        end
+function rays_in_world(sensor::DepthSensor, sensor_tform::Union{AbstractAffineMap, IdentityTransformation})
+    rotation = LinearMap(transform_deriv(sensor_tform, SVector{3, Float64}(0,0,0)))
+    SVector{3, Float64}[rotation(ray) for ray in sensor.rays]
+end
+
+function raycast_depths(surface::Function, sensor::DepthSensor, sensor_tform::Union{AbstractAffineMap, IdentityTransformation})
+    sensor_origin_xyz = sensor_tform(SVector{3, Float64}(0, 0, 0))
+    rays = rays_in_world(sensor, sensor_tform)
+    distances = similar(rays, Float64)
+    for i in eachindex(rays)
+        camera_view_ray = normalize(rays[i])
+        distances[i] = doRaycast(sensor_origin_xyz, camera_view_ray, surface)
     end
     distances
 end
 
-function raycast_points{N, T}(surface::ScalarField{N, T}, sensor::DepthSensor, sensor_origin::AffineTransform)
-    distances = raycast_depths(surface, sensor, sensor_origin)
-    points = Point{N, T}[]
+function raycast_points(surface::Function, sensor::DepthSensor, sensor_tform::Union{AbstractAffineMap, IdentityTransformation})
+    distances = raycast_depths(surface, sensor, sensor_tform)
+    points = SVector{3, Float64}[]
     for row in 1:size(distances, 1)
         for col in 1:size(distances, 2)
             if !isnan(distances[row, col])
-                push!(points, sensor_origin * convert(Vector, distances[row, col] * sensor.rays[row, col] / norm(sensor.rays[row, col])))
+                # @show distances[row, col]
+                # @show distances[row, col] * normalize(sensor.rays[row, col])
+                # @show sensor_tform(distances[row, col] * normalize(sensor.rays[row, col]))
+                push!(points, sensor_tform(distances[row, col] * normalize(sensor.rays[row, col])))
             end
         end
     end
