@@ -1,13 +1,11 @@
 module Arms
 
-import DrakeVisualizer: GeometryData, draw, Visualizer, Link
+import DrakeVisualizer: contour_mesh, draw, Visualizer, Link, GeometryData
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!
-# using AffineTransforms
 using LCMGL
 import GeometryTypes: HomogenousMesh
 import SpatialFields: InterpolatingSurface, XSquaredLogX
-# import Quaternions: axis, angle
 import StaticArrays: SVector, @SVector
 using CoordinateTransformations
 using Rotations
@@ -165,7 +163,7 @@ function draw{D, C}(arm::Model, state::ModelState{D, C}, draw_skin::Bool=true)
             lb = @SVector [minimum(p[i] for p in surface.points) for i in 1:3]
             ub = @SVector [maximum(p[i] for p in surface.points) for i in 1:3]
             widths = ub - lb
-            push!(geometries, GeometryData(surface, lb - 0.5 * widths, ub + 0.5 * widths, iso_level))
+            push!(geometries, GeometryData(contour_mesh(surface, lb - 0.5 * widths, ub + 0.5 * widths, iso_level)))
         end
         Visualizer([Link(geometries, "skin")])
     end

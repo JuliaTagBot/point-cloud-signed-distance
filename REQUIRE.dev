@@ -21,4 +21,4 @@ git@github.com:tkoolen/RigidBodyDynamics.jl.git 5755eb0138f43a5162463f8e4f5b95f7
 
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git 3d8dfdbfe4266c4c301db32665d23502c3c822d6
 git@github.com:rdeits/SpatialFields.jl.git b02cf96f171a466aebd590b9349f6fb15053381c
-git@github.com:rdeits/DrakeVisualizer.jl.git 9d00cb0eac5ff6570aec3d7d6e77403aebc3eee2
+git@github.com:rdeits/DrakeVisualizer.jl.git 910d83a56dc6735803932e8816964a06adc4cd00
