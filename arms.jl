@@ -18,7 +18,6 @@ import Base: convert
 
 convert(::Type{AffineMap}, T::Transform3D) = AffineMap(RigidBodyDynamics.rotationmatrix_normalized_fsa(T.rot), T.trans)
 
-value(x::Real) = x
 value{T}(x::AbstractArray{T}) = map(value, x)
 value(tform::AbstractAffineMap) = AffineMap(value(transform_deriv(tform)), value(tform(SVector{3, Float64}(0, 0, 0))))
 
@@ -36,8 +35,6 @@ type ModelState{ConfigurationType, DeformationType}
     mechanism_state::MechanismState{ConfigurationType}
     limb_deformations::Vector{Vector{FreeVector3D{DeformationType}}}
 end
-
-ModelState{C, D}(mechanism_state::MechanismState{C}, deformations::Vector{Vector{FreeVector3D{D}}}) = ModelState{C, D}(mechanism_state, deformations)
 
 function ModelState{C, D}(model::Model, joint_angles::Vector{C}, deformations::Vector{Vector{SVector{3, D}}})
     mechanism_state = MechanismState(C, model.mechanism)
