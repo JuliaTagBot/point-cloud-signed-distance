@@ -160,7 +160,7 @@ function draw{D, C}(arm::Model, state::ModelState{D, C}, draw_skin::Bool=true)
 
     if draw_skin
         geometries = []
-        for iso_level = [0.0, 0.5, 1.0]
+        for iso_level = [0.0]
             surface = skin(arm, state)
             lb = @SVector [minimum(p[i] for p in surface.points) for i in 1:3]
             ub = @SVector [maximum(p[i] for p in surface.points) for i in 1:3]
