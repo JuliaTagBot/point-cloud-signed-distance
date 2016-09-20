@@ -1,4 +1,4 @@
-julia 0.5-
+julia 0.5
 Gadfly
 DataFrames
 ProfileView
@@ -8,11 +8,13 @@ Interpolations
 StaticArrays
 CoordinateTransformations
 Rotations
-IJulia 1.3.0
+IJulia 1.3.1
 GeometryTypes
 DataStructures
 LightXML
 FileIO
+MathProgBase
+Ipopt
 
 git@github.com:rdeits/MeshIO.jl.git e55676925e57c8420c2a5ce1e74e90229b3be3a8
 git@github.com:JuliaLang/Interact.jl 77cd0eb8721e19314d19ae506cf77b68c14d662e
