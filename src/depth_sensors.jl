@@ -1,6 +1,7 @@
 module DepthSensors
 
 using CoordinateTransformations
+using LCMGL
 import StaticArrays: SVector
 
 export Kinect, raycast_depths, raycast_points
@@ -29,7 +30,24 @@ end
 
 type DepthSensor
     rays::Array{SVector{3, Float64}, 2}
+end
 
+function draw_rays(lcmgl::LCMGLClient, sensor::DepthSensor, tform::Transformation)
+    camera_origin = tform(SVector(0., 0, 0))
+    color(lcmgl, 0, 1, 0)
+    begin_mode(lcmgl, LCMGL.LINES)
+    for ray in rays_in_world(sensor, tform)
+        vertex(lcmgl, camera_origin...)
+        vertex(lcmgl, (camera_origin + ray)...)
+    end
+    end_mode(lcmgl)
+end
+
+function draw_rays(sensor::DepthSensor, tform::Transformation)
+    LCMGLClient("sensor_rays") do lcmgl
+        draw_rays(lcmgl, sensor, tform)
+        switch_buffer(lcmgl)
+    end
 end
 
 Kinect(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449) = DepthSensor(generateKinectRays(rows, cols, vertical_fov, horizontal_fov))
