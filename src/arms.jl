@@ -5,7 +5,7 @@ using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!, zero_configuration
 using LCMGL
 import GeometryTypes: HomogenousMesh
-import SpatialFields: InterpolatingSurface, XSquaredLogX
+import SpatialFields: InterpolatingSurface, XSquaredLogX, XCubed
 import StaticArrays: SVector, @SVector
 using CoordinateTransformations
 using Rotations
@@ -41,6 +41,12 @@ type Manipulator{T}
     geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}}
     surface_groups::Vector{Vector{RigidBody{T}}}
 end
+
+Manipulator{T}(mechanism::Mechanism{T},
+               geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}},
+               surface_groups::Vector{Vector{RigidBody{T}}}=[collect(keys(geometries))]) = (
+   Manipulator{T}(mechanism, geometries, surface_groups))
+
 
 typealias View{T} SubArray{T, 1, Array{T, 1}, Tuple{UnitRange{Int64}}, true}
 

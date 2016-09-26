@@ -72,7 +72,44 @@ function beanbag()
         end
     end
     geometries[body] = BodyGeometry(surface_points, skeleton_points, DeformableGeometry())
-    surface_groups = [[body]]
 
-    Manipulator(mechanism, geometries, surface_groups)
+    Manipulator(mechanism, geometries)
+end
+
+function squishable()
+    geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
+
+    mechanism = Mechanism(RigidBody{Float64}("world"))
+    parent = root_body(mechanism)
+
+    joint = Joint("joint1", QuaternionFloating())
+    joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
+    body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body1")))
+    body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
+    attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
+
+    surface_points = Vector{Point3D{Float64}}()
+    skeleton_points = [Point3D(body.frame, @SVector [0.0, 0.0, 0.0])]
+    radii = @SVector [0.44/2, 0.40/2, 0.30/2]
+    for axis = 1:3
+        for i_sign = [-1, 1]
+            for j_sign = [-1, 1]
+                for theta = [pi/4]
+                    v = [0., 0, 0]
+                    v[axis] = 1
+                    x = [0., 0, 0]
+                    i = mod(axis, 3) + 1
+                    j = mod(i, 3) + 1
+                    a = radii[i] * 1.25
+                    b = radii[j] * 1.25
+                    x[i] = i_sign * sqrt(a^2 * b^2 / (a^2 * tan(theta)^2 + b^2))
+                    x[j] = j_sign * sqrt(b^2 * (1 - b^2 / (a^2 * tan(theta)^2 + b^2)))
+                    point = SVector(x...)
+                    push!(surface_points, Point3D(body.frame, point))
+                end
+            end
+        end
+    end
+    geometries[body] = BodyGeometry(surface_points, skeleton_points, DeformableGeometry())
+    Manipulator(mechanism, geometries)
 end
