@@ -49,3 +49,30 @@ function two_link_arm(deformable::Bool=false)
 
     Manipulator(mechanism, geometries, surface_groups)
 end
+
+function beanbag()
+    geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
+
+    mechanism = Mechanism(RigidBody{Float64}("world"))
+    parent = root_body(mechanism)
+
+    joint = Joint("joint1", QuaternionFloating())
+    joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
+    body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body1")))
+    body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
+    attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
+
+    surface_points = Vector{Point3D{Float64}}()
+    skeleton_points = [Point3D(body.frame, @SVector [0.0, 0.0, 0.0])]
+    for axis = 1:3
+        for s = [-1; 1]
+            x = [0., 0, 0]
+            x[axis] = s
+            push!(surface_points, Point3D(body.frame, SVector(x...)))
+        end
+    end
+    geometries[body] = BodyGeometry(surface_points, skeleton_points, DeformableGeometry())
+    surface_groups = [[body]]
+
+    Manipulator(mechanism, geometries, surface_groups)
+end
