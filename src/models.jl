@@ -3,7 +3,8 @@ module Models
 import StaticArrays: SVector, @SVector
 import DataStructures: OrderedDict
 using RigidBodyDynamics
-import Flash: BodyGeometry, DeformableGeometry, RigidGeometry, Manipulator
+import Flash
+import Flash: BodyGeometry, Manipulator
 
 function two_link_arm(deformable::Bool=false)
     geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
@@ -47,14 +48,10 @@ function two_link_arm(deformable::Bool=false)
             push!(skeleton_points, Point3D(body.frame, SVector(x, 0., 0)))
         end
 
-        geometries[body] = BodyGeometry(surface_points, skeleton_points,
-            deformable? DeformableGeometry() : RigidGeometry())
+        geometries[body] = BodyGeometry(surface_points, skeleton_points)
     end
 
-    # surface_groups = [[g] for g in keys(geometries)]
-    surface_groups = [collect(keys(geometries))]
-
-    Manipulator(mechanism, geometries, surface_groups)
+    Manipulator(mechanism, [Flash.Surface(geometries, deformable? Flash.DeformableSkin() : Flash.RigidSkin())])
 end
 
 function beanbag()
@@ -78,9 +75,9 @@ function beanbag()
             push!(surface_points, Point3D(body.frame, SVector(x...)))
         end
     end
-    geometries[body] = BodyGeometry(surface_points, skeleton_points, DeformableGeometry())
+    geometries[body] = BodyGeometry(surface_points, skeleton_points)
 
-    Manipulator(mechanism, geometries)
+    Manipulator(mechanism, [Flash.Surface(geometries, Flash.DeformableSkin())])
 end
 
 function squishable()
@@ -117,8 +114,8 @@ function squishable()
             end
         end
     end
-    geometries[body] = BodyGeometry(surface_points, skeleton_points, DeformableGeometry())
-    Manipulator(mechanism, geometries)
+    geometries[body] = BodyGeometry(surface_points, skeleton_points)
+    Manipulator(mechanism, [Flash.Surface(geometries, Flash.DeformableSkin())])
 end
 
 end

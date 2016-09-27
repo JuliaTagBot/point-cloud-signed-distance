@@ -19,27 +19,26 @@ convert(::Type{AffineMap}, T::Transform3D) = AffineMap(RigidBodyDynamics.rotatio
 value{T}(x::AbstractArray{T}) = map(value, x)
 value(tform::AbstractAffineMap) = AffineMap(value(transform_deriv(tform)), value(tform(SVector{3, Float64}(0, 0, 0))))
 
-abstract BodyGeometryType
-
 type BodyGeometry{T}
     surface_points::Vector{Point3D{T}}
     skeleton_points::Vector{Point3D{T}}
-    geometry_type::BodyGeometryType
 end
 
-immutable DeformableGeometry <: BodyGeometryType end
-immutable RigidGeometry <: BodyGeometryType end
-immutable RigidPolytope <: BodyGeometryType end
+abstract SurfaceType
+
+immutable DeformableSkin <: SurfaceType end
+immutable RigidSkin <: SurfaceType end
+immutable RigidPolytope <: SurfaceType end
+
+type Surface{T}
+    geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}}
+    surface_type::SurfaceType
+end
 
 type Manipulator{T}
     mechanism::Mechanism{T}
-    geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}}
-    surface_groups::Vector{Vector{RigidBody{T}}}
+    surfaces::Vector{Surface{T}}
 end
-
-Manipulator{T}(mechanism::Mechanism{T},
-               geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}}) = (
-   Manipulator{T}(mechanism, geometries, [collect(keys(geometries))]))
 
 
 typealias View{T} SubArray{T, 1, Array{T, 1}, Tuple{UnitRange{Int64}}, true}
@@ -51,9 +50,9 @@ immutable ManipulatorState{ParamType, ConfigurationType, DeformationType}
     deformation_data::Vector{DeformationType}
 end
 
-num_deformations(geom::BodyGeometry, geom_type::DeformableGeometry) = length(geom.surface_points)
-num_deformations(geom::BodyGeometry, geom_type::RigidGeometry) = 0
-num_deformations(geom::BodyGeometry) = num_deformations(geom, geom.geometry_type)
+num_deformations(geom::BodyGeometry, surface_type::DeformableSkin) = length(geom.surface_points)
+num_deformations(geom::BodyGeometry, surface_type::RigidSkin) = 0
+num_deformations(geom::BodyGeometry, surface_type::RigidPolytope) = 0
 
 function ManipulatorState{T}(manipulator::Manipulator{T}, ConfigurationType::DataType=Float64,
                           DeformationType::DataType=Float64)
@@ -63,14 +62,16 @@ function ManipulatorState{T}(manipulator::Manipulator{T}, ConfigurationType::Dat
     deformation_data = Vector{DeformationType}()
     deformations = Dict{BodyGeometry{T}, Vector{DeformationView}}()
     offset = 0
-    for (body, geometry) in manipulator.geometries
-        body_deformations = Vector{DeformationView}()
-        for i in 1:num_deformations(geometry)
-            append!(deformation_data, zeros(DeformationType, 3))
-            push!(body_deformations, view(deformation_data, offset+(1:3)))
-            offset += 3
+    for surface in manipulator.surfaces
+        for geometry in values(surface.geometries)
+            body_deformations = Vector{DeformationView}()
+            for i in 1:num_deformations(geometry, surface.surface_type)
+                append!(deformation_data, zeros(DeformationType, 3))
+                push!(body_deformations, view(deformation_data, offset+(1:3)))
+                offset += 3
+            end
+            deformations[geometry] = body_deformations
         end
-        deformations[geometry] = body_deformations
     end
     ManipulatorState{T, ConfigurationType, DeformationType}(manipulator,
         mechanism_state,
@@ -121,37 +122,40 @@ function skeleton_points{P, C, D}(state::ManipulatorState{P, C, D}, geometry::Bo
     skeleton_points
 end
 
-function skin{P, C, D}(state::ManipulatorState{P, C, D}, bodies::Vector{RigidBody{P}})
-    surface = collect(flatten(map(body ->
-        surface_points(state, state.manipulator.geometries[body]), bodies)))
-    skeleton = collect(flatten(map(body ->
-        skeleton_points(state, state.manipulator.geometries[body]), bodies)))
-
-    points = vcat(surface, skeleton)
-    values = vcat(zeros(length(surface)), -1 + zeros(length(skeleton)))
-    skin = InterpolatingSurface(points, values, XSquaredLogX())
+function skin(state::ManipulatorState, surface::Surface, surf_type::DeformableSkin)
+    surface_pts = collect(flatten(map(geometry ->
+        surface_points(state, geometry), values(surface.geometries))))
+    skeleton_pts = collect(flatten(map(geometry ->
+        skeleton_points(state, geometry), values(surface.geometries))))
+    points = vcat(surface_pts, skeleton_pts)
+    signed_distances = vcat(zeros(length(surface_pts)), -1 + zeros(length(skeleton_pts)))
+    skin = InterpolatingSurface(points, signed_distances, XSquaredLogX())
 end
 
+skin(state::ManipulatorState, surface::Surface) = skin(state, surface, surface.surface_type)
+
 function skin(state::ManipulatorState)
-    map(bodies -> skin(state, bodies), state.manipulator.surface_groups)
+    map(surface -> skin(state, surface), state.manipulator.surfaces)
 end
 
 function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
     LCMGLClient("points") do lcmgl
-        for geometry in values(state.manipulator.geometries)
-            point_size(lcmgl, 10)
-            color(lcmgl, 1, 0, 0)
-            begin_mode(lcmgl, LCMGL.POINTS)
-            for point in surface_points(state, geometry)
-                vertex(lcmgl, map(value, point)...)
+        for surface in state.manipulator.surfaces
+            for geometry in values(surface.geometries)
+                point_size(lcmgl, 10)
+                color(lcmgl, 1, 0, 0)
+                begin_mode(lcmgl, LCMGL.POINTS)
+                for point in surface_points(state, geometry)
+                    vertex(lcmgl, map(value, point)...)
+                end
+                end_mode(lcmgl)
+                color(lcmgl, 0, 0, 1)
+                begin_mode(lcmgl, LCMGL.POINTS)
+                for point in skeleton_points(state, geometry)
+                    vertex(lcmgl, map(value, point)...)
+                end
+                end_mode(lcmgl)
             end
-            end_mode(lcmgl)
-            color(lcmgl, 0, 0, 1)
-            begin_mode(lcmgl, LCMGL.POINTS)
-            for point in skeleton_points(state, geometry)
-                vertex(lcmgl, map(value, point)...)
-            end
-            end_mode(lcmgl)
         end
         switch_buffer(lcmgl)
     end
