@@ -1,4 +1,4 @@
-module Arms
+module Flash
 
 import DrakeVisualizer: contour_mesh, draw, Visualizer, Link, GeometryData
 using RigidBodyDynamics
@@ -29,12 +29,7 @@ end
 
 immutable DeformableGeometry <: BodyGeometryType end
 immutable RigidGeometry <: BodyGeometryType end
-
-# type Limb
-#     surface_points::Vector{Point3D}
-#     skeleton_points::Vector{Point3D}
-# end
-#
+immutable RigidPolytope <: BodyGeometryType end
 
 type Manipulator{T}
     mechanism::Mechanism{T}
@@ -43,9 +38,8 @@ type Manipulator{T}
 end
 
 Manipulator{T}(mechanism::Mechanism{T},
-               geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}},
-               surface_groups::Vector{Vector{RigidBody{T}}}=[collect(keys(geometries))]) = (
-   Manipulator{T}(mechanism, geometries, surface_groups))
+               geometries::OrderedDict{RigidBody{T}, BodyGeometry{T}}) = (
+   Manipulator{T}(mechanism, geometries, [collect(keys(geometries))]))
 
 
 typealias View{T} SubArray{T, 1, Array{T, 1}, Tuple{UnitRange{Int64}}, true}
@@ -83,40 +77,6 @@ function ManipulatorState{T}(manipulator::Manipulator{T}, ConfigurationType::Dat
         deformations,
         deformation_data)
 end
-
-# function ManipulatorState{C, D}(model::Manipulator, joint_angles::Vector{C},
-#                                 deformations::Vector{Vector{SVector{3, D}}})
-#     mechanism_state = MechanismState(C, model.mechanism)
-#     set_configuration!(mechanism_state, joint_angles)
-#     zero_velocity!(mechanism_state)
-#     deformations_in_frames = Vector{Vector{FreeVector3D{D}}}()
-#     for (i, (body, limb)) in enumerate(model.limbs)
-#         limb_deformations = deformations[i]
-#         limb_deformations_in_frame = Vector{FreeVector3D{D}}()
-#         for d in limb_deformations
-#             push!(limb_deformations_in_frame, FreeVector3D(body.frame, d))
-#         end
-#         push!(deformations_in_frames, limb_deformations_in_frame)
-#     end
-#     ManipulatorState{C, D}(mechanism_state, deformations_in_frames)
-# end
-
-# function zero_configuration(model::Manipulator, ConfigurationType=Float64, DeformationType=Float64)
-#     joint_angles = Vector{ConfigurationType}()
-#     for vertex in model.mechanism.toposortedTree[2:end]
-#         joint = vertex.edgeToParentData
-#         append!(joint_angles, RigidBodyDynamics.zero_configuration(joint, ConfigurationType))
-#     end
-#     deformations = Vector{SVector{3, DeformationType}}[SVector{3, DeformationType}[0 for i in 1:num_deformations(geometry)] for (body, geometry) in model.geometries]
-#     joint_angles, deformations
-# end
-
-
-# function ManipulatorState(model::Manipulator, ConfigurationType::DataType=Float64,
-#                           DeformationType::DataType=Float64)
-#     joint_angles, deformations = zero_configuration(model, ConfigurationType, DeformationType)
-#     ManipulatorState(model, joint_angles, deformations)
-# end
 
 function set_configuration!{P, C, D}(state::ManipulatorState{P, C, D}, joint_angles::AbstractVector{C})
     set_configuration!(state.mechanism_state, joint_angles)
@@ -213,6 +173,8 @@ function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
     end
 end
 
+include("depthsensors.jl")
+include("depthdata.jl")
 include("models.jl")
 
 end

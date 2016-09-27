@@ -1,3 +1,10 @@
+module Models
+
+import StaticArrays: SVector, @SVector
+import DataStructures: OrderedDict
+using RigidBodyDynamics
+import Flash: BodyGeometry, DeformableGeometry, RigidGeometry, Manipulator
+
 function two_link_arm(deformable::Bool=false)
     geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
 
@@ -112,4 +119,6 @@ function squishable()
     end
     geometries[body] = BodyGeometry(surface_points, skeleton_points, DeformableGeometry())
     Manipulator(mechanism, geometries)
+end
+
 end

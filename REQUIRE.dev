@@ -10,18 +10,18 @@ CoordinateTransformations
 Rotations
 IJulia 1.3.1
 Interact 0.3.3
-GeometryTypes
 DataStructures
 LightXML
 FileIO
 MathProgBase
 Ipopt
 
+git@github.com:JuliaGeometry/GeometryTypes.jl.git 705e5a646dd2177bbb4b9f8c26b52bc832b38d65
 git@github.com:JuliaIO/MeshIO.jl.git a523aa936ada3cee3156fe06ac648fb57399e3e3
 
-git@github.com:tkoolen/RigidBodyDynamics.jl.git 5755eb0138f43a5162463f8e4f5b95f77ddbbc68
+git@github.com:tkoolen/RigidBodyDynamics.jl.git 34d245f0a69f6211a0a94e41ca4279723e36285c
 
-git@github.com:rdeits/RigidBodyTreeInspector.jl.git 3d8dfdbfe4266c4c301db32665d23502c3c822d6
+git@github.com:rdeits/RigidBodyTreeInspector.jl.git 5e795601d0f5d18da88d1a5e98166b6a5cea5f7b
 git@github.com:rdeits/SpatialFields.jl.git b02cf96f171a466aebd590b9349f6fb15053381c
 git@github.com:rdeits/DrakeVisualizer.jl.git 910d83a56dc6735803932e8816964a06adc4cd00
 git@github.com:rdeits/SimpleGradientDescent.jl.git 18e7a3be6633ac76ee1e1c22f64d4b7dfbfc68cb
