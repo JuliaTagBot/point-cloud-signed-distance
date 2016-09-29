@@ -5,7 +5,7 @@ using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!, zero_configuration
 using LCMGL
 import GeometryTypes
-import GeometryTypes: HomogenousMesh, Vec
+import GeometryTypes: HomogenousMesh, Vec, vertices
 import SpatialFields: InterpolatingSurface, XSquaredLogX, XCubed
 import StaticArrays: SVector, @SVector
 using CoordinateTransformations
@@ -144,12 +144,17 @@ end
 
 any_inside{T}(points::Vector{Vec{3, T}}) = points[1]
 
+immutable SimplexSurface{T} <: Function
+    simplex::GeometryTypes.FlexibleSimplex{Vec{3, T}}
+end
 
-function skin(state::ManipulatorState, surface::Surface, surf_type::RigidPolytope)
+(surface::SimplexSurface{T}){T}(x) = GeometryTypes.gjk(surface.simplex, Vec{3, T}(x[1], x[2], x[3]))
+
+function skin{P, T}(state::ManipulatorState{P, T, T}, surface::Surface, surf_type::RigidPolytope)
     surface_pts = flatten(map(geometry ->
         surface_points(state, geometry), values(surface.geometries)))
-    simplex = GeometryTypes.FlexibleSimplex([Vec{3, Float64}(pt[1], pt[2], pt[3]) for pt in surface_pts])
-    x -> GeometryTypes.gjk(simplex, Vec{3, Float64}(x[1], x[2], x[3]))
+    simplex = GeometryTypes.FlexibleSimplex([Vec{3, T}(pt[1], pt[2], pt[3]) for pt in surface_pts])
+    SimplexSurface(simplex)
 end
 
 skin(state::ManipulatorState, surface::Surface) = skin(state, surface, surface.surface_type)
@@ -161,6 +166,20 @@ end
 function skin(state::ManipulatorState)
     all_surfaces = surfaces(state)
     x -> minimum(s(x) for s in all_surfaces)
+end
+
+function drawing_region(surface::InterpolatingSurface)
+    lb = @SVector [minimum(p[i] for p in surface.points) for i in 1:3]
+    ub = @SVector [maximum(p[i] for p in surface.points) for i in 1:3]
+    widths = ub - lb
+    lb - 0.5 * widths, ub + 0.5 * widths
+end
+
+function drawing_region(surface::SimplexSurface)
+    lb = SVector{3, Float64}(minimum(vertices(surface.simplex))...)
+    ub = SVector{3, Float64}(maximum(vertices(surface.simplex))...)
+    widths = ub - lb
+    lb - 0.1 * widths, ub + 0.1 * widths
 end
 
 function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
@@ -191,10 +210,8 @@ function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
         for (i, surface) in enumerate(all_surfaces)
             geometries = []
             for iso_level = [0.0]
-                lb = @SVector [minimum(p[i] for p in surface.points) for i in 1:3]
-                ub = @SVector [maximum(p[i] for p in surface.points) for i in 1:3]
-                widths = ub - lb
-                push!(geometries, GeometryData(contour_mesh(surface, lb - 0.5 * widths, ub + 0.5 * widths, iso_level, 0.1)))
+                lb, ub = drawing_region(surface)
+                push!(geometries, GeometryData(contour_mesh(surface, lb, ub, iso_level, 0.1)))
             end
             push!(links, Link(geometries, "skin_$(i)"))
         end

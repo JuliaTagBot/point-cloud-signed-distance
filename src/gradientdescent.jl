@@ -1,6 +1,6 @@
 const deformation_cost_weight = 10
 
-function flatten(state::Flash.ManipulatorState)
+function Base.flatten(state::Flash.ManipulatorState)
     vcat(state.mechanism_state.q, state.deformation_data)
 end
 
