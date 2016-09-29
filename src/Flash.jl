@@ -85,16 +85,16 @@ function set_configuration!{P, C, D}(state::ManipulatorState{P, C, D}, joint_ang
     set_configuration!(state.mechanism_state, joint_angles)
 end
 
-function link_origins(arm::Manipulator, state::MechanismState)
-    transforms = [convert(AffineMap, transform_to_root(state, body.frame)) for body in keys(arm.limbs)]
+function link_origins(state::MechanismState)
+    transforms = [convert(AffineMap, transform_to_root(state, body.frame)) for body in bodies(state.mechanism)]
 end
 
-link_origins(arm::Manipulator, state::ManipulatorState) = link_origins(arm, state.mechanism_state)
+link_origins(state::ManipulatorState) = link_origins(state.mechanism_state)
 
 function link_origins{T}(arm::Manipulator, joint_angles::AbstractVector{T})
     state = MechanismState(T, arm.mechanism)
     set_configuration!(state, joint_angles)
-    link_origins(arm, state)
+    link_origins(state)
 end
 
 function surface_points{P, C, D}(state::ManipulatorState{P, C, D}, geometry::BodyGeometry{P})
