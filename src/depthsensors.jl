@@ -3,6 +3,7 @@ module DepthSensors
 using CoordinateTransformations
 using LCMGL
 import StaticArrays: SVector
+import Flash
 
 export Kinect, raycast_depths, raycast_points
 
@@ -109,6 +110,29 @@ function raycast_points(surface::Function, sensor::DepthSensor, sensor_tform::Un
         end
     end
     points
+end
+
+function raycast(state::Flash.ManipulatorState, sensor::DepthSensor, sensor_tform::Union{AbstractAffineMap, IdentityTransformation})
+    surfaces = Flash.skin(state)
+    min_surface = x -> minimum(map(s -> s(x), surfaces))
+    raycast_points(min_surface, sensor, sensor_tform)
+end
+
+function draw_points(lcmgl::LCMGLClient, points::AbstractArray)
+    LCMGL.color(lcmgl, 0, 1, 0)
+    point_size(lcmgl, 5)
+    begin_mode(lcmgl, LCMGL.POINTS)
+    for point in points
+        vertex(lcmgl, convert(Vector, point)...)
+    end
+    end_mode(lcmgl)
+end
+
+function draw_points(points::AbstractArray)
+    LCMGLClient("raycast") do lcmgl
+        draw_points(lcmgl, points)
+        switch_buffer(lcmgl)
+    end
 end
 
 end
