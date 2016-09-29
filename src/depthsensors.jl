@@ -55,7 +55,7 @@ Kinect(rows, cols, vertical_fov=0.4682, horizontal_fov=0.5449) = DepthSensor(gen
 
 function doRaycast(camera_origin, camera_view_ray, field::Function)
     EPS = 1E-5
-    SAFE_RATE = 0.5
+    SAFE_RATE = 0.4
     SAFE_ITER_LIMIT = 60
     dist = 0
     k = 0
