@@ -8,8 +8,8 @@ Interpolations
 StaticArrays
 CoordinateTransformations
 Rotations
-IJulia 1.3.1
-Interact 0.3.3
+IJulia 1.3.2
+Interact 0.3.5
 DataStructures
 LightXML
 FileIO
@@ -22,6 +22,6 @@ git@github.com:JuliaIO/MeshIO.jl.git a523aa936ada3cee3156fe06ac648fb57399e3e3
 git@github.com:tkoolen/RigidBodyDynamics.jl.git 34d245f0a69f6211a0a94e41ca4279723e36285c
 
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git 5e795601d0f5d18da88d1a5e98166b6a5cea5f7b
-git@github.com:rdeits/SpatialFields.jl.git b02cf96f171a466aebd590b9349f6fb15053381c
+git@github.com:rdeits/SpatialFields.jl.git 070f90a4861c4384483373e06123f91636995ab4
 git@github.com:rdeits/DrakeVisualizer.jl.git b49d7006bb4d99b2e4c2a0073238a27f9f2f434a
-git@github.com:rdeits/SimpleGradientDescent.jl.git 18e7a3be6633ac76ee1e1c22f64d4b7dfbfc68cb
+git@github.com:rdeits/SimpleGradientDescent.jl.git 2ce6d84be1c464db94b8cf2073ed19ed06b85990

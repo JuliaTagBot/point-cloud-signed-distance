@@ -10,6 +10,7 @@ import StaticArrays: SVector, @SVector
 using CoordinateTransformations
 using Rotations
 import ColorTypes
+import ForwardDiff
 import ForwardDiff: value
 import DataStructures: OrderedDict
 import Base: convert, flatten
@@ -100,12 +101,20 @@ function surface_points{P, C, D}(state::ManipulatorState{P, C, D}, geometry::Bod
     surface_points = Vector{SVector{3, T}}(length(geometry.surface_points))
     root = root_frame(state.manipulator.mechanism)
     deformations = state.deformations[geometry]
-    for (i, point) in enumerate(geometry.surface_points)
-        deformation = FreeVector3D(point.frame,
-            convert(SVector{3, T}, deformations[i]))
-        surface_points[i] = RigidBodyDynamics.transform(state.mechanism_state,
-                                          point + deformation,
-                                          root).v
+    if length(deformations) > 0
+        for (i, point) in enumerate(geometry.surface_points)
+            deformation = FreeVector3D(point.frame,
+                convert(SVector{3, T}, deformations[i]))
+            surface_points[i] = RigidBodyDynamics.transform(state.mechanism_state,
+                                              point + deformation,
+                                              root).v
+        end
+    else
+        for (i, point) in enumerate(geometry.surface_points)
+            surface_points[i] = RigidBodyDynamics.transform(state.mechanism_state,
+                                              point,
+                                              root).v
+        end
     end
     surface_points
 end
@@ -122,20 +131,25 @@ function skeleton_points{P, C, D}(state::ManipulatorState{P, C, D}, geometry::Bo
     skeleton_points
 end
 
-function skin(state::ManipulatorState, surface::Surface, surf_type::DeformableSkin)
+function skin(state::ManipulatorState, surface::Surface, surf_type::Union{DeformableSkin, RigidSkin})
     surface_pts = collect(flatten(map(geometry ->
         surface_points(state, geometry), values(surface.geometries))))
     skeleton_pts = collect(flatten(map(geometry ->
         skeleton_points(state, geometry), values(surface.geometries))))
     points = vcat(surface_pts, skeleton_pts)
     signed_distances = vcat(zeros(length(surface_pts)), -1 + zeros(length(skeleton_pts)))
-    skin = InterpolatingSurface(points, signed_distances, XSquaredLogX())
+    InterpolatingSurface(points, signed_distances, XSquaredLogX())
 end
 
 skin(state::ManipulatorState, surface::Surface) = skin(state, surface, surface.surface_type)
 
-function skin(state::ManipulatorState)
+function surfaces(state::ManipulatorState)
     map(surface -> skin(state, surface), state.manipulator.surfaces)
+end
+
+function skin(state::ManipulatorState)
+    all_surfaces = surfaces(state)
+    x -> minimum(s(x) for s in all_surfaces)
 end
 
 function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
@@ -162,8 +176,8 @@ function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
 
     if draw_skin
         links = Link[]
-        surfaces = skin(state)
-        for (i, surface) in enumerate(surfaces)
+        all_surfaces = surfaces(state)
+        for (i, surface) in enumerate(all_surfaces)
             geometries = []
             for iso_level = [0.0]
                 lb = @SVector [minimum(p[i] for p in surface.points) for i in 1:3]
@@ -180,5 +194,6 @@ end
 include("depthsensors.jl")
 include("depthdata.jl")
 include("models.jl")
+include("gradientdescent.jl")
 
 end

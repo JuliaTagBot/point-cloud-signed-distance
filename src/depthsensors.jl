@@ -113,9 +113,8 @@ function raycast_points(surface::Function, sensor::DepthSensor, sensor_tform::Un
 end
 
 function raycast(state::Flash.ManipulatorState, sensor::DepthSensor, sensor_tform::Union{AbstractAffineMap, IdentityTransformation})
-    surfaces = Flash.skin(state)
-    min_surface = x -> minimum(map(s -> s(x), surfaces))
-    raycast_points(min_surface, sensor, sensor_tform)
+    surface = Flash.skin(state)
+    raycast_points(surface, sensor, sensor_tform)
 end
 
 function draw_points(lcmgl::LCMGLClient, points::AbstractArray)
