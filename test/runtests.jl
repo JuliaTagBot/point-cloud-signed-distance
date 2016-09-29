@@ -20,7 +20,7 @@ end
 @testset "Notebooks" begin
     jupyter = IJulia.jupyter
 
-    for notebook in ["../examples/manipulator.ipynb", "../examples/squishable.ipynb", "../examples/deformable_manipulator.ipynb"]
+    for notebook in ["../examples/manipulator.ipynb", "../examples/squishable.ipynb", "../examples/deformable_manipulator.ipynb", "../examples/irb140.ipynb"]
         run(`$jupyter nbconvert --to notebook --execute $notebook --output $notebook`)
     end
 end

@@ -4,7 +4,8 @@ import DrakeVisualizer: contour_mesh, draw, Visualizer, Link, GeometryData
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!, zero_configuration
 using LCMGL
-import GeometryTypes: HomogenousMesh
+import GeometryTypes
+import GeometryTypes: HomogenousMesh, Vec
 import SpatialFields: InterpolatingSurface, XSquaredLogX, XCubed
 import StaticArrays: SVector, @SVector
 using CoordinateTransformations
@@ -139,6 +140,16 @@ function skin(state::ManipulatorState, surface::Surface, surf_type::Union{Deform
     points = vcat(surface_pts, skeleton_pts)
     signed_distances = vcat(zeros(length(surface_pts)), -1 + zeros(length(skeleton_pts)))
     InterpolatingSurface(points, signed_distances, XSquaredLogX())
+end
+
+any_inside{T}(points::Vector{Vec{3, T}}) = points[1]
+
+
+function skin(state::ManipulatorState, surface::Surface, surf_type::RigidPolytope)
+    surface_pts = flatten(map(geometry ->
+        surface_points(state, geometry), values(surface.geometries)))
+    simplex = GeometryTypes.FlexibleSimplex([Vec{3, Float64}(pt[1], pt[2], pt[3]) for pt in surface_pts])
+    x -> GeometryTypes.gjk(simplex, Vec{3, Float64}(x[1], x[2], x[3]))
 end
 
 skin(state::ManipulatorState, surface::Surface) = skin(state, surface, surface.surface_type)
