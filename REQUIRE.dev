@@ -21,7 +21,7 @@ git@github.com:JuliaIO/MeshIO.jl.git a523aa936ada3cee3156fe06ac648fb57399e3e3
 
 git@github.com:tkoolen/RigidBodyDynamics.jl.git 34d245f0a69f6211a0a94e41ca4279723e36285c
 
-git@github.com:rdeits/RigidBodyTreeInspector.jl.git 5e795601d0f5d18da88d1a5e98166b6a5cea5f7b
+git@github.com:rdeits/RigidBodyTreeInspector.jl.git bb5fbffb462eb5c1100733b08509592b984a8c1f
 git@github.com:rdeits/SpatialFields.jl.git 070f90a4861c4384483373e06123f91636995ab4
 git@github.com:rdeits/DrakeVisualizer.jl.git b22347088581c9cf63bf474c39f3d28df53a8ee7
 git@github.com:rdeits/SimpleGradientDescent.jl.git 2ce6d84be1c464db94b8cf2073ed19ed06b85990

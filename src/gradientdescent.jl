@@ -31,7 +31,6 @@ CostFunctor(manipulator::Manipulator, sensed_points::AbstractVector) = CostFunct
 
 function (functor::CostFunctor{ParamType}){ParamType, T}(x::AbstractVector{T})
     if isnull(functor.state) || typeof(get(functor.state)) != ManipulatorState{ParamType, T, T}
-        println("Constructing a new state with T: $T")
         functor.state = Nullable{ManipulatorState}(ManipulatorState(functor.manipulator, T, T))
     end
     state::ManipulatorState{ParamType, T, T} = get(functor.state)
@@ -39,11 +38,6 @@ function (functor::CostFunctor{ParamType}){ParamType, T}(x::AbstractVector{T})
     # @code_warntype cost(state, functor.sensed_points)
     cost(state, functor.sensed_points)
 end
-
-# function GradientFunctor(manipulator::Manipulator, sensed_points::AbstractVector)
-#     cost = CostFunctor(manipulator, sensed_points)
-#     (g, x) -> ForwardDiff.gradient!(g, cost, x)
-# end
 
 function CostAndGradientFunctor(cost::Function)
     (g, x) -> begin
