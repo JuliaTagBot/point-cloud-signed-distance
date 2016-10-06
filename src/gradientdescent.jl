@@ -1,16 +1,32 @@
+module GradientDescent
+using RigidBodyDynamics
+import Flash
+import Flash: Manipulator, ManipulatorState
+import Base: normalize!
+
 const deformation_cost_weight = 10
 
-function Base.flatten(state::Flash.ManipulatorState)
+function Base.flatten(state::ManipulatorState)
     vcat(state.mechanism_state.q, state.deformation_data)
 end
 
-function unflatten!{T}(state::Flash.ManipulatorState, data::AbstractVector{T})
+function unflatten!{T}(state::ManipulatorState, data::AbstractVector{T})
     nq = num_positions(state.mechanism_state)
     set_configuration!(state.mechanism_state, data[1:nq])
     state.deformation_data[:] = data[(nq + 1):end]
 end
 
+normalize!(state::MechanismState, joint, jointType::JointType) = ()
+function normalize!(state::MechanismState, joint, jointType::QuaternionFloating)
+    q_range = state.mechanism.qRanges[joint][1:4]
+    q_view = view(state.q, q_range)
+    q_view .= q_view ./ norm(q_view)
+end
+normalize!(state::MechanismState, joint) = normalize!(state, joint, joint.jointType)
+normalize!(state::MechanismState) = foreach(joint -> normalize!(state, joint), joints(state.mechanism))
+
 function cost(state::ManipulatorState, sensed_points::AbstractArray)
+    normalize!(state.mechanism_state)
     skin = Flash.skin(state)
     c = sum(point -> skin(point)^2, sensed_points)
     for deformation_set in values(state.deformations)
@@ -45,4 +61,6 @@ function CostAndGradientFunctor(cost::Function)
         ForwardDiff.gradient!(out, cost, x)
         ForwardDiff.value(out)
     end
+end
+
 end

@@ -3,8 +3,10 @@ module Models
 import StaticArrays: SVector, @SVector
 import DataStructures: OrderedDict
 using RigidBodyDynamics
+import RigidBodyTreeInspector
 import Flash
 import Flash: BodyGeometry, Manipulator
+import GeometryTypes: vertices
 
 function two_link_arm(deformable::Bool=false)
     geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
@@ -117,5 +119,28 @@ function squishable()
     geometries[body] = BodyGeometry(surface_points, skeleton_points)
     Manipulator(mechanism, [Flash.Surface(geometries, Flash.DeformableSkin())])
 end
+
+function extract_convex_surfaces(mechanism, vis_data)
+    surfaces = Vector{Flash.Surface{Float64}}()
+    for (i, node) in enumerate(mechanism.toposortedTree)
+        body = node.vertexData
+        mesh = vis_data[i].geometry_data[1].geometry
+        tform = vis_data[i].geometry_data[1].transform
+        verts = vertices(mesh)
+        surface_points = [Point3D(body.frame, tform(SVector{3, Float64}(v...))) for v in verts]
+        skeleton_points = Vector{Point3D{Float64}}()
+        geometries = OrderedDict(body => Flash.BodyGeometry(surface_points, skeleton_points))
+        push!(surfaces, Flash.Surface(geometries, Flash.RigidPolytope()))
+    end
+    surfaces
+end
+
+function load_urdf(filename; package_path::Vector=RigidBodyTreeInspector.ros_package_path())
+    mechanism = RigidBodyDynamics.parse_urdf(Float64, filename);
+    vis_data = RigidBodyTreeInspector.parse_urdf_visuals(filename, mechanism; package_path=package_path);
+    surfaces = extract_convex_surfaces(mechanism, vis_data)
+    Flash.Manipulator(mechanism, surfaces);
+end
+
 
 end

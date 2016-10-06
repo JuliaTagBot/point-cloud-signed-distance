@@ -14,7 +14,7 @@ import ColorTypes
 import ForwardDiff
 import ForwardDiff: value
 import DataStructures: OrderedDict
-import Base: convert, flatten
+import Base: convert, flatten, show
 
 convert(::Type{AffineMap}, T::Transform3D) = AffineMap(RigidBodyDynamics.rotationmatrix_normalized_fsa(T.rot), T.trans)
 
@@ -37,11 +37,14 @@ type Surface{T}
     surface_type::SurfaceType
 end
 
+show(io::IO, surface::Surface) = print(io, "$(surface.surface_type) surface with $(length(surface.geometries)) geometries")
+
 type Manipulator{T}
     mechanism::Mechanism{T}
     surfaces::Vector{Surface{T}}
 end
 
+show(io::IO, manip::Manipulator) = print(io, "Manipulator with $(length(bodies(manip.mechanism))) links and $(length(manip.surfaces)) surfaces")
 
 typealias View{T} SubArray{T, 1, Array{T, 1}, Tuple{UnitRange{Int64}}, true}
 
@@ -56,19 +59,21 @@ num_deformations(geom::BodyGeometry, surface_type::DeformableSkin) = length(geom
 num_deformations(geom::BodyGeometry, surface_type::RigidSkin) = 0
 num_deformations(geom::BodyGeometry, surface_type::RigidPolytope) = 0
 
+num_deformations(manip::Manipulator) = sum(surface -> sum(geometry -> 3 * num_deformations(geometry, surface.surface_type), values(surface.geometries)), manip.surfaces)
+num_states(manip::Manipulator) = num_positions(manip.mechanism) + num_deformations(manip)
+
 function ManipulatorState{T}(manipulator::Manipulator{T}, ConfigurationType::DataType=Float64,
                           DeformationType::DataType=Float64)
     typealias DeformationView View{DeformationType}
 
     mechanism_state = MechanismState(ConfigurationType, manipulator.mechanism)
-    deformation_data = Vector{DeformationType}()
+    deformation_data = zeros(DeformationType, num_deformations(manipulator))
     deformations = Dict{BodyGeometry{T}, Vector{DeformationView}}()
     offset = 0
     for surface in manipulator.surfaces
         for geometry in values(surface.geometries)
             body_deformations = Vector{DeformationView}()
             for i in 1:num_deformations(geometry, surface.surface_type)
-                append!(deformation_data, zeros(DeformationType, 3))
                 push!(body_deformations, view(deformation_data, offset+(1:3)))
                 offset += 3
             end
@@ -223,5 +228,6 @@ include("depthsensors.jl")
 include("depthdata.jl")
 include("models.jl")
 include("gradientdescent.jl")
+include("tracking.jl")
 
 end
