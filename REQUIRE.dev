@@ -19,7 +19,7 @@ Ipopt
 git@github.com:JuliaGeometry/GeometryTypes.jl.git 705e5a646dd2177bbb4b9f8c26b52bc832b38d65
 git@github.com:JuliaIO/MeshIO.jl.git a523aa936ada3cee3156fe06ac648fb57399e3e3
 
-git@github.com:tkoolen/RigidBodyDynamics.jl.git 34d245f0a69f6211a0a94e41ca4279723e36285c
+git@github.com:tkoolen/RigidBodyDynamics.jl.git 9551b32ed53a57e72df2c78c3c1922fe21b5a3f5
 
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git bb5fbffb462eb5c1100733b08509592b984a8c1f
 git@github.com:rdeits/SpatialFields.jl.git 070f90a4861c4384483373e06123f91636995ab4
