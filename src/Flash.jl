@@ -2,7 +2,7 @@ module Flash
 
 import DrakeVisualizer: contour_mesh, draw, Visualizer, Link, GeometryData
 using RigidBodyDynamics
-import RigidBodyDynamics: set_configuration!, zero_configuration
+import RigidBodyDynamics: set_configuration!
 using LCMGL
 import GeometryTypes
 import GeometryTypes: HomogenousMesh, Vec, vertices
@@ -22,8 +22,8 @@ value{T}(x::AbstractArray{T}) = map(value, x)
 value(tform::AbstractAffineMap) = AffineMap(value(transform_deriv(tform)), value(tform(SVector{3, Float64}(0, 0, 0))))
 
 type BodyGeometry{T}
-    surface_points::Vector{Point3D{T}}
-    skeleton_points::Vector{Point3D{T}}
+    surface_points::Vector{Point3D{SVector{3, T}}}
+    skeleton_points::Vector{Point3D{SVector{3, T}}}
 end
 
 abstract SurfaceType

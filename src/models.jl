@@ -8,6 +8,8 @@ import Flash
 import Flash: BodyGeometry, Manipulator
 import GeometryTypes: vertices
 
+typealias Point3DS{T} Point3D{SVector{3, T}}
+
 function two_link_arm(deformable::Bool=false)
     geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
 
@@ -29,8 +31,8 @@ function two_link_arm(deformable::Bool=false)
         attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
         parent = body
 
-        surface_points = Vector{Point3D{Float64}}()
-        skeleton_points = Vector{Point3D{Float64}}()
+        surface_points = Vector{Point3DS{Float64}}()
+        skeleton_points = Vector{Point3DS{Float64}}()
         for x = linspace(0.1*link_length, 0.9*link_length, 3)
             for y = [-radius; radius]
                 for z = [-radius; radius]
@@ -62,13 +64,13 @@ function beanbag()
     mechanism = Mechanism(RigidBody{Float64}("world"))
     parent = root_body(mechanism)
 
-    joint = Joint("joint1", QuaternionFloating())
+    joint = Joint("joint1", QuaternionFloating{Float64}())
     joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
     body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body1")))
     body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
     attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
 
-    surface_points = Vector{Point3D{Float64}}()
+    surface_points = Vector{Point3DS{Float64}}()
     skeleton_points = [Point3D(body.frame, @SVector [0.0, 0.0, 0.0])]
     for axis = 1:3
         for s = [-1; 1]
@@ -88,13 +90,13 @@ function squishable()
     mechanism = Mechanism(RigidBody{Float64}("world"))
     parent = root_body(mechanism)
 
-    joint = Joint("joint1", QuaternionFloating())
+    joint = Joint("joint1", QuaternionFloating{Float64}())
     joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
     body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body1")))
     body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
     attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
 
-    surface_points = Vector{Point3D{Float64}}()
+    surface_points = Vector{Point3DS{Float64}}()
     skeleton_points = [Point3D(body.frame, @SVector [0.0, 0.0, 0.0])]
     radii = @SVector [0.44/2, 0.40/2, 0.30/2]
     for axis = 1:3
@@ -124,13 +126,15 @@ function extract_convex_surfaces(mechanism, vis_data)
     surfaces = Vector{Flash.Surface{Float64}}()
     for (i, node) in enumerate(mechanism.toposortedTree)
         body = node.vertexData
-        mesh = vis_data[i].geometry_data[1].geometry
-        tform = vis_data[i].geometry_data[1].transform
-        verts = vertices(mesh)
-        surface_points = [Point3D(body.frame, tform(SVector{3, Float64}(v...))) for v in verts]
-        skeleton_points = Vector{Point3D{Float64}}()
-        geometries = OrderedDict(body => Flash.BodyGeometry(surface_points, skeleton_points))
-        push!(surfaces, Flash.Surface(geometries, Flash.RigidPolytope()))
+        if length(vis_data[i].geometry_data) > 0
+            mesh = vis_data[i].geometry_data[1].geometry
+            tform = vis_data[i].geometry_data[1].transform
+            verts = vertices(mesh)
+            surface_points = [Point3D(body.frame, tform(SVector{3, Float64}(v...))) for v in verts]
+            skeleton_points = Vector{Point3DS{Float64}}()
+            geometries = OrderedDict(body => Flash.BodyGeometry(surface_points, skeleton_points))
+            push!(surfaces, Flash.Surface(geometries, Flash.RigidPolytope()))
+        end
     end
     surfaces
 end
@@ -140,6 +144,12 @@ function load_urdf(filename; package_path::Vector=RigidBodyTreeInspector.ros_pac
     vis_data = RigidBodyTreeInspector.parse_urdf_visuals(filename, mechanism; package_path=package_path);
     surfaces = extract_convex_surfaces(mechanism, vis_data)
     Flash.Manipulator(mechanism, surfaces);
+end
+
+function merge!(manip1::Manipulator, manip2::Manipulator)
+    RigidBodyDynamics.attach!(manip1.mechanism, RigidBodyDynamics.root_body(manip1.mechanism), manip2.mechanism)
+    manip1.surfaces = vcat(manip1.surfaces, manip2.surfaces)
+    manip1
 end
 
 

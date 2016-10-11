@@ -19,9 +19,9 @@ Ipopt
 git@github.com:JuliaGeometry/GeometryTypes.jl.git 705e5a646dd2177bbb4b9f8c26b52bc832b38d65
 git@github.com:JuliaIO/MeshIO.jl.git a523aa936ada3cee3156fe06ac648fb57399e3e3
 
-git@github.com:tkoolen/RigidBodyDynamics.jl.git 9551b32ed53a57e72df2c78c3c1922fe21b5a3f5
+git@github.com:tkoolen/RigidBodyDynamics.jl.git 624458a0538b8aa78adc91d6ef7d0819fec76305
 
-git@github.com:rdeits/RigidBodyTreeInspector.jl.git bb5fbffb462eb5c1100733b08509592b984a8c1f
+git@github.com:rdeits/RigidBodyTreeInspector.jl.git e21d9feae06b6ae2681cd56bceef950157e11200
 git@github.com:rdeits/SpatialFields.jl.git 070f90a4861c4384483373e06123f91636995ab4
 git@github.com:rdeits/DrakeVisualizer.jl.git b22347088581c9cf63bf474c39f3d28df53a8ee7
 git@github.com:rdeits/SimpleGradientDescent.jl.git 0fcc1f95f3f20a86caa22e80937667f01897253b
