@@ -2,7 +2,6 @@ julia 0.5
 Gadfly
 DataFrames
 ProfileView
-PyLCM 0.0.3
 LCMGL 0.0.1
 Interpolations
 StaticArrays
@@ -21,6 +20,7 @@ git@github.com:JuliaIO/MeshIO.jl.git a523aa936ada3cee3156fe06ac648fb57399e3e3
 
 git@github.com:tkoolen/RigidBodyDynamics.jl.git 624458a0538b8aa78adc91d6ef7d0819fec76305
 
+git@github.com:rdeits/PyLCM.jl.git f74bb6a539fa3601c2f509c76b291d107bb5ed33
 git@github.com:rdeits/RigidBodyTreeInspector.jl.git e21d9feae06b6ae2681cd56bceef950157e11200
 git@github.com:rdeits/SpatialFields.jl.git 070f90a4861c4384483373e06123f91636995ab4
 git@github.com:rdeits/DrakeVisualizer.jl.git b22347088581c9cf63bf474c39f3d28df53a8ee7
