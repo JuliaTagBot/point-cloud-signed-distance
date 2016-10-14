@@ -25,3 +25,4 @@ git@github.com:rdeits/RigidBodyTreeInspector.jl.git e21d9feae06b6ae2681cd56bceef
 git@github.com:rdeits/SpatialFields.jl.git 070f90a4861c4384483373e06123f91636995ab4
 git@github.com:rdeits/DrakeVisualizer.jl.git b22347088581c9cf63bf474c39f3d28df53a8ee7
 git@github.com:rdeits/SimpleGradientDescent.jl.git 0fcc1f95f3f20a86caa22e80937667f01897253b
+git@github.com:rdeits/BotCoreLCMTypes.jl.git 197532f17b0a74f3be6c52dfc0f9afb1f75717a5
