@@ -1,0 +1,1 @@
+export PYTHONPATH="$PYTHONPATH:$HOME/locomotion/explorations/point-cloud-signed-distance/packages/v0.5/PyLCM/deps/usr/lib/python2.7/site-packages:$HOME/locomotion/explorations/point-cloud-signed-distance/packages/v0.5/BotCoreLCMTypes/deps/usr/lib/python2.7/site-packages:$HOME/locomotion/kinect/build/install/lib/python2.7/dist-packages"
