@@ -92,7 +92,7 @@ function squishable()
 
     joint = Joint("joint1", QuaternionFloating{Float64}())
     joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
-    body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body1")))
+    body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("squishable_body")))
     body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
     attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
 

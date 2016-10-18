@@ -144,7 +144,7 @@ function skin(state::ManipulatorState, surface::Surface, surf_type::Union{Deform
         skeleton_points(state, geometry), values(surface.geometries))))
     points = vcat(surface_pts, skeleton_pts)
     signed_distances = vcat(zeros(length(surface_pts)), -1 + zeros(length(skeleton_pts)))
-    InterpolatingSurface(points, signed_distances, XSquaredLogX())
+    InterpolatingSurface(points, signed_distances, XCubed(), true)
 end
 
 any_inside{T}(points::Vector{Vec{3, T}}) = points[1]

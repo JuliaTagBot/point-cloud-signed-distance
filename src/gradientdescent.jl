@@ -4,7 +4,7 @@ import Flash
 import Flash: Manipulator, ManipulatorState
 import Base: normalize!
 
-const deformation_cost_weight = 10
+const deformation_cost_weight = 1
 
 function Base.flatten(state::ManipulatorState)
     vcat(state.mechanism_state.q, state.deformation_data)

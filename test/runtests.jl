@@ -14,7 +14,7 @@ end
     model = Flash.Models.beanbag()
     state = Flash.ManipulatorState(model)
     skin = Flash.skin(state)
-    @test isapprox(skin(SVector(0.0, 0, 0)), -1.0)
+    @test isapprox(skin(SVector(100.0, 0, 0)), 99.0, rtol=2e-2)
 end
 
 @testset "Notebooks" begin
