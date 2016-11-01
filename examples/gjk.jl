@@ -130,45 +130,57 @@ end
     Val{$(N + 1)}
 end
 
-typealias Simplex{M, N, T, Tag} MVector{M, Tagged{gt.Vec{N, T}, Tag}}
+# typealias Simplex{M, N, T, Tag} MVector{M, Tagged{gt.Vec{N, T}, Tag}}
 
 function gjk(hull, max_iter=100, atol=1e-6)
     gjk(hull, dimensionof(hull), scalartype(hull), max_iter, atol)
 end
 
-function Simplex{M, N, T, TagType}(tagged::Tagged{gt.Vec{N, T}, TagType}, simplexlen::Type{Val{M}})
-    Simplex{M, N, T, TagType}(tagged for i in 1:M)
-end
+# function Simplex{M, N, T, TagType}(tagged::Tagged{gt.Vec{N, T}, TagType}, simplexlen::Type{Val{M}})
+#     Simplex{M, N, T, TagType}(tagged for i in 1:M)
+# end
 
 function gjk{N, T}(hull, ::Type{Val{N}}, ::Type{T}, max_iter, atol)
     tagged = any_inside(hull)
-    simplex = Simplex(tagged, simplexlength(dimensionof(hull)))
+    simplex = gt.FlexibleSimplex([tagged])
+    # simplex = Simplex(tagged, simplexlength(dimensionof(hull)))
     # @code_warntype gjk(hull, simplex, tagged.point, max_iter, atol)
     gjk(hull, simplex, tagged.point, max_iter, atol)
 end
 
-function gjk{N, T, S, Tag}(hull, simplex::Simplex{S, N, T, Tag}, pt_best, max_iter=100, atol=1e-6)
+function proj_sqdist{N, T, S, Tag}(v::gt.Vec{N, T}, simplex::gt.Simplex{S, Gjk.Tagged{gt.Vec{N, T}, Tag}})
+    untagged_simplex = gt.Simplex{S, gt.Vec{N, T}}(ntuple(i -> simplex._[i].point, S))
+    gt.proj_sqdist(v, untagged_simplex)
+end
+
+function proj_sqdist(pt, fs::gt.FlexibleSimplex)
+    gt.with_immutable(fs) do s
+        proj_sqdist(pt, s)
+    end
+end
+
+function gjk{N, T, Tag}(hull, simplex::gt.FlexibleSimplex{Tagged{gt.Vec{N, T}, Tag}}, pt_best, max_iter=100, atol=1e-6)
     zero_point = zero(gt.Vec{N, T})
-    simplex_points = 1
     for k in 1:max_iter
         direction = -pt_best
         # Do a linear search over just the simplex to find a good starting point,
         # then do a neighbor-wise search over the mesh to try to find an even
         # better point.
-        starting_vertex, _ = gt.argmax(t -> dot(t.point, direction), simplex)
+        starting_vertex, _ = gt.argmax(t -> dot(t.point, direction), simplex._)
         improved_vertex, score = support_vector_max(hull, direction, starting_vertex.tag)
         # If we found something no better than the existing simplex, then return
         if score <= dot(pt_best, direction) + atol
             break
         else
-            if simplex_points <= N
-                simplex[simplex_points + 1] = improved_vertex
-                simplex_points += 1
+            @show length(simplex) N
+            if length(simplex) <= N
+                push!(simplex, improved_vertex)
             else
-                worst_index, _ = gt.argmax(i -> -dot(simplex[i].point, direction), 1:simplex_points)
-                simplex[worst_index] = improved_vertex
+                error("here")
+                worst_index = indmin(p -> dot(p.point, direction), simplex)
+                simplex._[worst_index] = improved_vertex
             end
-            pt_best::gt.Vec{N, T}, sqd::T = gt.proj_sqdist(zero_point, gt.Simplex((convert(gt.Vec{N, T}, t.point) for t in view(simplex, 1:simplex_points))...))
+            pt_best, sqd = proj_sqdist(zero_point, simplex)
             sqd == 0 && break
         end
     end
