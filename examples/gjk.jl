@@ -1,14 +1,49 @@
 module Gjk
 
-import Base: @pure
+import Base: @pure, -, .*, +, dot
 import GeometryTypes
 import StaticArrays: SVector, @SVector, MVector, @MVector
 const gt = GeometryTypes
 
-immutable Tagged{P, T}
+abstract Annotated{P}
+
+immutable Tagged{P, T} <: Annotated{P}
     point::P
     tag::T
 end
+
+Tagged{P}(point::P) = Tagged(point, nothing)
+
+value(t::Tagged) = t.point
+
+immutable Difference{P, P1, P2} <: Annotated{P}
+    point::P
+    p1::P1
+    p2::P2
+end
+Difference(p1, p2) = Difference(p1 - p2, p1, p2)
+# TaggedDifference{P, P1, P2}(p1::Tagged{P, Tag1}, p2::Tagged{P, Tag2}) =
+#     TaggedDifference{P, Tag1, Tag2}(p1.point - p2.point, p1, p2)
+# TaggedDifference{P}(p1::P, p2::P) = TaggedDifference(Tagged(p1), Tagged(p2))
+
+# -(t1::Tagged, t2::Tagged) = TaggedDifference(t1, t2)
+-(t1::Tagged, t2::Tagged) = value(t1) - value(t2)
++(t1::Tagged, t2::Tagged) = value(t1) + value(t2)
+-(p::gt.Vec, t::Tagged) = p - value(t)
+.*(t::Tagged, n::Number) = .*(value(t), n)
+-(t::Tagged) = -value(t)
+
+.*(d::Difference, n::Number) = Difference(.*(d.p1, n), .*(d.p2, n))
++(d1::Difference, d2::Difference) = Difference(d1.p1 + d2.p1, d1.p2 + d2.p2)
+-(d::Difference) = Difference(-d.point, -d.p1, -d.p2)
+dot(v, d::Difference) = dot(v, value(d))
+dot(d::Difference, v) = dot(value(d), v)
+dot(d1::Difference, d2::Difference) = dot(value(d1), value(d2))
+
+Base.Tuple(t::Tagged) = Tuple(value(t))
+Base.Tuple(d::Difference) = Tuple(value(d))
+
+value(d::Difference) = d.point
 
 type AcceleratedMesh{N, T, MeshType <: gt.AbstractMesh}
     mesh::MeshType
@@ -59,29 +94,29 @@ end
 any_inside{N, T}(mesh::AcceleratedMesh{N, T}) = Tagged(gt.Vec{N, T}(gt.vertices(mesh.mesh)[1]), 1)
 function any_inside(geometry)
     point = gt.any_inside(geometry)
-    Tagged(point, point)
+    Tagged(point)
 end
 
 function any_inside{N, T}(mesh::gt.AbstractMesh{gt.Point{N, T}})
     point = convert(gt.Vec{N, T}, gt.vertices(mesh)[1])
-    Tagged(point, point)
+    Tagged(point)
 end
 
 function any_inside(m::gt.MinkowskiDifference)
     t1 = any_inside(m.c1)
     t2 = any_inside(m.c2)
-    Tagged(t1.point - t2.point, (t1.tag, t2.tag))
+    Difference(t1, t2)
 end
 
-function support_vector_max(geometry, direction, initial_guess)
+function support_vector_max(geometry, direction, initial_guess::Tagged)
     best_pt, score = gt.support_vector_max(geometry, direction)
-    Tagged(best_pt, best_pt), score
+    Tagged(best_pt), score
 end
 
 function support_vector_max{N, T}(mesh::AcceleratedMesh{N, T}, direction,
-                                  initial_guess::Integer)
+                                  initial_guess::Tagged)
     verts = gt.vertices(mesh.mesh)
-    best = Tagged(convert(gt.Vec{N, T}, verts[initial_guess]), initial_guess)
+    best = Tagged(convert(gt.Vec{N, T}, verts[initial_guess.tag]), initial_guess.tag)
     score = dot(direction, best.point)
     while true
         candidates = mesh.neighbors[best.tag]
@@ -96,16 +131,16 @@ function support_vector_max{N, T}(mesh::AcceleratedMesh{N, T}, direction,
     best, score
 end
 
-function support_vector_max{N, T}(mesh::gt.HomogenousMesh{gt.Point{N, T}}, direction, initial_guess)
+function support_vector_max{N, T}(mesh::gt.HomogenousMesh{gt.Point{N, T}}, direction, initial_guess::Tagged)
     best_arg, best_value = gt.argmax(x-> x⋅direction, gt.vertices(mesh))
     best_vec = convert(gt.Vec{N, T}, best_arg)
-    Tagged(best_vec, best_vec), best_value::T
+    Tagged(best_vec), best_value::T
 end
 
-function support_vector_max(m::gt.MinkowskiDifference, direction, initial_guess)
-    t1, score1 = support_vector_max(m.c1, direction, initial_guess[1])
-    t2, score2 = support_vector_max(m.c2, -direction, initial_guess[2])
-    Tagged(t1.point - t2.point, (t1.tag, t2.tag)), score1 + score2
+function support_vector_max(m::gt.MinkowskiDifference, direction, initial_guess::Annotated)
+    t1, score1 = support_vector_max(m.c1, direction, initial_guess.p1)
+    t2, score2 = support_vector_max(m.c2, -direction, initial_guess.p2)
+    Difference(t1, t2), score1 + score2
 end
 
 @pure dimensionof{N, T}(::gt.AbstractGeometry{N, T}) = Val{N}
@@ -130,27 +165,56 @@ end
     Val{$(N + 1)}
 end
 
-# typealias Simplex{M, N, T, Tag} MVector{M, Tagged{gt.Vec{N, T}, Tag}}
-
 function gjk(hull, max_iter=100, atol=1e-6)
     gjk(hull, dimensionof(hull), scalartype(hull), max_iter, atol)
 end
-
-# function Simplex{M, N, T, TagType}(tagged::Tagged{gt.Vec{N, T}, TagType}, simplexlen::Type{Val{M}})
-#     Simplex{M, N, T, TagType}(tagged for i in 1:M)
-# end
 
 function gjk{N, T}(hull, ::Type{Val{N}}, ::Type{T}, max_iter, atol)
     tagged = any_inside(hull)
     simplex = gt.FlexibleSimplex([tagged])
     # simplex = Simplex(tagged, simplexlength(dimensionof(hull)))
     # @code_warntype gjk(hull, simplex, tagged.point, max_iter, atol)
-    gjk(hull, simplex, tagged.point, max_iter, atol)
+    gjk(hull, simplex, value(tagged), max_iter, atol)
 end
 
-function proj_sqdist{N, T, S, Tag}(v::gt.Vec{N, T}, simplex::gt.Simplex{S, Gjk.Tagged{gt.Vec{N, T}, Tag}})
-    untagged_simplex = gt.Simplex{S, gt.Vec{N, T}}(ntuple(i -> simplex._[i].point, S))
-    gt.proj_sqdist(v, untagged_simplex)
+@inline function proj_sqdist(p::gt.Vec, q::gt.Vec, best_sqd=eltype(p)(Inf))
+    q, min(best_sqd, gt.sqnorm(p-q))
+end
+@inline function proj_sqdist{T}(pt::T, s::gt.Simplex{1}, best_sqd=eltype(T)(Inf))
+    proj_sqdist(pt, gt.translation(s), best_sqd)
+end
+function proj_sqdist(pt, d::Difference, best_sqd)
+    p1, d1 = proj_sqdist(pt, d.p1, best_sqd)
+    p2, d2 = proj_sqdist(pt, d.p2, best_sqd)
+    Difference(p1, p2), d1 - d2
+end
+proj_sqdist(pt, t::Tagged, best_sqd) = proj_sqdist(pt, value(t), best_sqd)
+
+sqdist(pt, s, best=Inf) = proj_sqdist(pt, s, best)[2]
+
+function proj_sqdist{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
+    w = gt.weights(pt, map(value, s))
+    best_proj = sum(s .* w)
+    # best_proj = gt.vertexmat(s) * w
+    # at this point best_proj lies in the subspace spanned by s,
+    # but not necessarily inside s
+    sqd = sqdist(pt, best_proj)
+    if sqd >= best_sqd  # pt is far away even from the subspace spanned by s
+        return best_proj, best_sqd
+    elseif any(w .< 0)  # pt is closest to point inside a face of s
+        @inbounds for i in 1:length(w)
+            if w[i] < 0
+                proj, sqd = proj_sqdist(pt, gt.simplex_face(s,i), best_sqd)
+                if sqd < best_sqd
+                    best_sqd = sqd
+                    best_proj = proj
+                end
+            end
+        end
+        return best_proj, best_sqd
+    else # proj lies in the interiour of s
+        return best_proj, sqd
+    end
 end
 
 function proj_sqdist(pt, fs::gt.FlexibleSimplex)
@@ -159,25 +223,23 @@ function proj_sqdist(pt, fs::gt.FlexibleSimplex)
     end
 end
 
-function gjk{N, T, Tag}(hull, simplex::gt.FlexibleSimplex{Tagged{gt.Vec{N, T}, Tag}}, pt_best, max_iter=100, atol=1e-6)
+function gjk{N, T}(hull, simplex::gt.FlexibleSimplex, pt_best::Union{gt.Vec{N, T}, Difference{gt.Vec{N, T}}}, max_iter=100, atol=1e-6)
     zero_point = zero(gt.Vec{N, T})
     for k in 1:max_iter
         direction = -pt_best
         # Do a linear search over just the simplex to find a good starting point,
         # then do a neighbor-wise search over the mesh to try to find an even
         # better point.
-        starting_vertex, _ = gt.argmax(t -> dot(t.point, direction), simplex._)
-        improved_vertex, score = support_vector_max(hull, direction, starting_vertex.tag)
+        starting_vertex, _ = gt.argmax(t -> dot(value(t), direction), simplex._)
+        improved_vertex, score = support_vector_max(hull, direction, starting_vertex)
         # If we found something no better than the existing simplex, then return
         if score <= dot(pt_best, direction) + atol
             break
         else
-            @show length(simplex) N
             if length(simplex) <= N
                 push!(simplex, improved_vertex)
             else
-                error("here")
-                worst_index = indmin(p -> dot(p.point, direction), simplex)
+                worst_index, _ = gt.argmax(i -> -dot(value(simplex._[i]), direction), 1:length(simplex))
                 simplex._[worst_index] = improved_vertex
             end
             pt_best, sqd = proj_sqdist(zero_point, simplex)
