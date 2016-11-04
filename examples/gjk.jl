@@ -1,20 +1,13 @@
 module Gjk
 
-import Base: @pure, -, .*, +, dot
+import Base: @pure, +, -, *, /, .*, .+, .-, ./, dot
 import GeometryTypes
 import StaticArrays: SVector, @SVector, MVector, @MVector
 const gt = GeometryTypes
 
 abstract Annotated{P}
 
-immutable Tagged{P, T} <: Annotated{P}
-    point::P
-    tag::T
-end
-
-Tagged{P}(point::P) = Tagged(point, nothing)
-
-value(t::Tagged) = t.point
+include("tags.jl")
 
 immutable Difference{P, P1, P2} <: Annotated{P}
     point::P
@@ -26,16 +19,22 @@ Difference(p1, p2) = Difference(p1 - p2, p1, p2)
 #     TaggedDifference{P, Tag1, Tag2}(p1.point - p2.point, p1, p2)
 # TaggedDifference{P}(p1::P, p2::P) = TaggedDifference(Tagged(p1), Tagged(p2))
 
+for op in [:+, :-, :*, :/, :.*, :.+, :.-, :./, :dot]
+    @eval $(op)(t::Tagged, n) = $(op)(value(t), n)
+    @eval $(op)(n, t::Tagged) = $(op)(n, value(t))
+    @eval $(op)(t1::Tagged, t2::Tagged) = $(op)(value(t1), value(t2))
+end
 # -(t1::Tagged, t2::Tagged) = TaggedDifference(t1, t2)
--(t1::Tagged, t2::Tagged) = value(t1) - value(t2)
-+(t1::Tagged, t2::Tagged) = value(t1) + value(t2)
--(p::gt.Vec, t::Tagged) = p - value(t)
-.*(t::Tagged, n::Number) = .*(value(t), n)
--(t::Tagged) = -value(t)
+# -(t1::Tagged, t2::Tagged) = value(t1) - value(t2)
+# +(t1::Tagged, t2::Tagged) = value(t1) + value(t2)
+# -(p::gt.Vec, t::Tagged) = p - value(t)
+# .*(t::Tagged, n::Number) = .*(value(t), n)
+# -(t::Tagged) = -value(t)
 
 .*(d::Difference, n::Number) = Difference(.*(d.p1, n), .*(d.p2, n))
 +(d1::Difference, d2::Difference) = Difference(d1.p1 + d2.p1, d1.p2 + d2.p2)
 -(d::Difference) = Difference(-d.point, -d.p1, -d.p2)
+
 dot(v, d::Difference) = dot(v, value(d))
 dot(d::Difference, v) = dot(value(d), v)
 dot(d1::Difference, d2::Difference) = dot(value(d1), value(d2))
@@ -45,68 +44,7 @@ Base.Tuple(d::Difference) = Tuple(value(d))
 
 value(d::Difference) = d.point
 
-type AcceleratedMesh{N, T, MeshType <: gt.AbstractMesh}
-    mesh::MeshType
-    neighbors::Vector{Set{Int}}
-end
-
-function plane_fit(data)
-    centroid = mean(data, 2)
-    U, s, V = svd(data .- centroid)
-    i = indmin(s)
-    normal = U[:,i]
-    offset = dot(normal, centroid)
-    normal, offset
-end
-
-
-function AcceleratedMesh{N, T}(mesh::gt.AbstractMesh{gt.Point{N, T}})
-    neighbors = Set{Int}[Set{Int}() for vertex in gt.vertices(mesh)]
-    for face in gt.faces(mesh)
-        for i in 1:length(face)
-            for j in i+1:length(face)
-                if face[i] != face[j]
-                    push!(neighbors[gt.onebased(face, i)], gt.onebased(face, j))
-                    push!(neighbors[gt.onebased(face, j)], gt.onebased(face, i))
-                end
-            end
-        end
-    end
-
-    # The enhanced GJK algorithm is susceptible to becoming stuck in local minima
-    # if all of the neighbors of a given vertex are coplanar. It also benefits from
-    # having some distant neighbors for each node, to avoid having to always take the
-    # long way around the mesh to get to the other side.
-    # To try to fix this, we will compute a fitting plane for all of the existing
-    # neighbors for each vertex. We will then add neighbors corresponding to the
-    # vertices at the maximum distance on each side of that plane.
-    verts = gt.vertices(mesh)
-    for i in eachindex(neighbors)
-        @assert length(neighbors[i]) >= 2
-        normal, offset = plane_fit(reinterpret(T,
-            [verts[n] for n in neighbors[i]], (N, length(neighbors[i]))))
-        push!(neighbors[i], indmin(map(v -> dot(convert(gt.Point{N, T}, normal), v), verts)))
-        push!(neighbors[i], indmax(map(v -> dot(convert(gt.Point{N, T}, normal), v), verts)))
-    end
-    AcceleratedMesh{N, T, typeof(mesh)}(mesh, neighbors)
-end
-
-any_inside{N, T}(mesh::AcceleratedMesh{N, T}) = Tagged(gt.Vec{N, T}(gt.vertices(mesh.mesh)[1]), 1)
-function any_inside(geometry)
-    point = gt.any_inside(geometry)
-    Tagged(point)
-end
-
-function any_inside{N, T}(mesh::gt.AbstractMesh{gt.Point{N, T}})
-    point = convert(gt.Vec{N, T}, gt.vertices(mesh)[1])
-    Tagged(point)
-end
-
-function any_inside(m::gt.MinkowskiDifference)
-    t1 = any_inside(m.c1)
-    t2 = any_inside(m.c2)
-    Difference(t1, t2)
-end
+include("acceleratedmesh.jl")
 
 function support_vector_max(geometry, direction, initial_guess::Tagged)
     best_pt, score = gt.support_vector_max(geometry, direction)
@@ -165,20 +103,8 @@ end
     Val{$(N + 1)}
 end
 
-function gjk(hull, max_iter=100, atol=1e-6)
-    gjk(hull, dimensionof(hull), scalartype(hull), max_iter, atol)
-end
-
-function gjk{N, T}(hull, ::Type{Val{N}}, ::Type{T}, max_iter, atol)
-    tagged = any_inside(hull)
-    simplex = gt.FlexibleSimplex([tagged])
-    # simplex = Simplex(tagged, simplexlength(dimensionof(hull)))
-    # @code_warntype gjk(hull, simplex, tagged.point, max_iter, atol)
-    gjk(hull, simplex, value(tagged), max_iter, atol)
-end
-
 @inline function proj_sqdist(p::gt.Vec, q::gt.Vec, best_sqd=eltype(p)(Inf))
-    q, min(best_sqd, gt.sqnorm(p-q))
+    q, min(best_sqd, gt.sqnorm(p-q)), false
 end
 @inline function proj_sqdist{T}(pt::T, s::gt.Simplex{1}, best_sqd=eltype(T)(Inf))
     proj_sqdist(pt, gt.translation(s), best_sqd)
@@ -186,7 +112,7 @@ end
 function proj_sqdist(pt, d::Difference, best_sqd)
     p1, d1 = proj_sqdist(pt, d.p1, best_sqd)
     p2, d2 = proj_sqdist(pt, d.p2, best_sqd)
-    Difference(p1, p2), d1 - d2
+    Difference(p1, p2), d1 - d2, false
 end
 proj_sqdist(pt, t::Tagged, best_sqd) = proj_sqdist(pt, value(t), best_sqd)
 
@@ -200,7 +126,7 @@ function proj_sqdist{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
     # but not necessarily inside s
     sqd = sqdist(pt, best_proj)
     if sqd >= best_sqd  # pt is far away even from the subspace spanned by s
-        return best_proj, best_sqd
+        return best_proj, best_sqd, false
     elseif any(w .< 0)  # pt is closest to point inside a face of s
         @inbounds for i in 1:length(w)
             if w[i] < 0
@@ -211,9 +137,9 @@ function proj_sqdist{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
                 end
             end
         end
-        return best_proj, best_sqd
+        return best_proj, best_sqd, false
     else # proj lies in the interiour of s
-        return best_proj, sqd
+        return best_proj, sqd, length(s) > length(pt)
     end
 end
 
@@ -223,8 +149,21 @@ function proj_sqdist(pt, fs::gt.FlexibleSimplex)
     end
 end
 
+function gjk(hull, max_iter=100, atol=1e-6)
+    gjk(hull, dimensionof(hull), scalartype(hull), max_iter, atol)
+end
+
+function gjk{N, T}(hull, ::Type{Val{N}}, ::Type{T}, max_iter, atol)
+    tagged = any_inside(hull)
+    simplex = gt.FlexibleSimplex([tagged])
+    # simplex = Simplex(tagged, simplexlength(dimensionof(hull)))
+    # @code_warntype gjk(hull, simplex, tagged.point, max_iter, atol)
+    gjk(hull, simplex, value(tagged), max_iter, atol)
+end
+
 function gjk{N, T}(hull, simplex::gt.FlexibleSimplex, pt_best::Union{gt.Vec{N, T}, Difference{gt.Vec{N, T}}}, max_iter=100, atol=1e-6)
     zero_point = zero(gt.Vec{N, T})
+    in_interior::Bool = false
     for k in 1:max_iter
         direction = -pt_best
         # Do a linear search over just the simplex to find a good starting point,
@@ -242,11 +181,12 @@ function gjk{N, T}(hull, simplex::gt.FlexibleSimplex, pt_best::Union{gt.Vec{N, T
                 worst_index, _ = gt.argmax(i -> -dot(value(simplex._[i]), direction), 1:length(simplex))
                 simplex._[worst_index] = improved_vertex
             end
-            pt_best, sqd = proj_sqdist(zero_point, simplex)
-            sqd == 0 && break
+            pt_best, sqd, in_interior = proj_sqdist(zero_point, simplex)
+            # @show pt_best sqd in_interior
+            (in_interior || sqd == 0) && break
         end
     end
-    simplex, pt_best
+    simplex, pt_best, in_interior
 end
 
 end
