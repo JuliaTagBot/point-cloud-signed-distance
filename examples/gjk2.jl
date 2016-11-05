@@ -87,10 +87,10 @@ function support_vector_max{N, T}(mesh::gt.HomogenousMesh{gt.Point{N, T}}, direc
 end
 
 @inline function projection_weights(p::gt.Vec, q::gt.Vec)
-    SVector{1}(1.0)
+    [1.0]
 end
 @inline function projection_weights{T}(pt::T, s::gt.Simplex{1})
-    SVector{1}(1.0)
+    [1.0]
 end
 
 function projection_weights{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
@@ -127,7 +127,7 @@ function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformatio
     weights = projection_weights(origin, simplex)
 
     for k in 1:max_iter
-        @show simplex weights
+        # @show simplex weights
         direction = -best_point
         direction_in_A = rotAinv * direction
         direction_in_B = rotBinv * direction
@@ -143,7 +143,7 @@ function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformatio
             support_vector_max(cache.bodyA, direction_in_A, starting_vertex.a),
             support_vector_max(cache.bodyB, -direction_in_B, starting_vertex.b))
         improved_point = poseA(value(improved_vertex.a)) - poseB(value(improved_vertex.b))
-        @show direction best_point improved_point
+        # @show direction best_point improved_point
         score = dot(improved_point, direction)
         if score <= dot(best_point, direction) + atol
             break
@@ -157,6 +157,13 @@ function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformatio
             end
             weights = projection_weights(origin, simplex)
             length(weights) > N && all(weights .>= 0) && break
+            for i in length(weights):-1:1
+                if weights[i] <= atol
+                    deleteat!(weights, i)
+                    deleteat!(simplex, i)
+                    deleteat!(cache.simplex_points, i)
+                end
+            end
             best_point = sum(broadcast(*, weights, simplex._))
         end
     end
