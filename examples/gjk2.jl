@@ -4,7 +4,7 @@ import GeometryTypes
 const gt = GeometryTypes
 import CoordinateTransformations: Transformation, transform_deriv
 import StaticArrays: SVector
-import Base: dot, zero, +
+import Base: dot, zero, +, @pure
 
 abstract Annotated{P}
 
@@ -23,6 +23,25 @@ dot(n::Number, t::Tagged) = n * value(t)
 
 zero{PA, PB}(d::Difference{PA, PB}) = Difference(zero(d.a), zero(d.b))
 # zero{PA, PB}(::Type{Difference{PA, PB}}) = Difference(zero(PA), zero(PB))
+
+@pure dimension{N, T}(::gt.AbstractGeometry{N, T}) = Val{N}
+@pure scalartype{N, T}(::gt.AbstractGeometry{N, T}) = T
+
+@pure dimension{N, T, S}(::gt.AbstractSimplex{S, gt.Vec{N, T}}) = Val{N}
+@pure scalartype{N, T, S}(::gt.AbstractSimplex{S, gt.Vec{N, T}}) = T
+
+@pure dimension{N, T}(::gt.HomogenousMesh{gt.Point{N, T}}) = Val{N}
+@pure scalartype{N, T}(::gt.HomogenousMesh{gt.Point{N, T}}) = T
+
+@pure dimension{N, T}(::gt.Vec{N, T}) = Val{N}
+@pure scalartype{N, T}(::gt.Vec{N, T}) = T
+
+@inline dimension(m::gt.MinkowskiDifference) = dimension(m.c1)
+@inline scalartype(m::gt.MinkowskiDifference) = promote_type(scalartype(m.c1), scalartype(m.c2))
+
+@inline dimension(mesh::AcceleratedMesh) = dimension(mesh.mesh)
+@inline scalartype(mesh::AcceleratedMesh) = scalartype(mesh.mesh)
+
 
 type CollisionCache{GeomA, GeomB, D1 <: Difference, D2 <: Difference}
     bodyA::GeomA
@@ -87,10 +106,10 @@ function support_vector_max{N, T}(mesh::gt.HomogenousMesh{gt.Point{N, T}}, direc
 end
 
 @inline function projection_weights(p::gt.Vec, q::gt.Vec)
-    [1.0]
+    [1.0], false
 end
 @inline function projection_weights{T}(pt::T, s::gt.Simplex{1})
-    [1.0]
+    [1.0], false
 end
 
 function projection_weights{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
@@ -98,14 +117,14 @@ function projection_weights{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
 
     @inbounds for i in 1:length(w)
         if w[i] < 0
-            w_face = projection_weights(pt, gt.simplex_face(s, i))
+            w_face, _ = projection_weights(pt, gt.simplex_face(s, i))
             w[i] = 0
             w[1:(i-1)] = w_face[1:(i-1)]
             w[(i+1):end] = w_face[i:end]
-            return w
+            return w, false
         end
     end
-    w
+    w, length(s) > length(pt)
 end
 
 function projection_weights(pt, fs::gt.FlexibleSimplex)
@@ -115,18 +134,34 @@ function projection_weights(pt, fs::gt.FlexibleSimplex)
 end
 
 function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformation)
+    gjk!(dimension(cache.bodyA), cache, poseA, poseB)
+end
+
+function gjk!{N}(::Type{Val{N}}, cache::CollisionCache, poseA::Transformation, poseB::Transformation)
     const max_iter = 100
     const atol = 1e-6
-    const N = 3
-    const origin = zero(gt.Vec{3, Float64})
+    const origin = zero(gt.Vec{N, Float64})
     const rotAinv = transform_deriv(inv(poseA), origin)
     const rotBinv = transform_deriv(inv(poseB), origin)
-    in_interior::Bool = false
-    best_point = poseA(cache.closest_point.a) - poseB(cache.closest_point.b)
     simplex = gt.FlexibleSimplex([poseA(value(p.a)) - poseB(value(p.b)) for p in cache.simplex_points])
-    weights = projection_weights(origin, simplex)
+    best_point = simplex._[1]
+    in_interior::Bool = false
 
     for k in 1:max_iter
+        weights, in_interior = projection_weights(origin, simplex)
+        if in_interior
+            break
+        end
+        for i in length(weights):-1:1
+            if weights[i] <= atol
+                deleteat!(weights, i)
+                deleteat!(simplex, i)
+                deleteat!(cache.simplex_points, i)
+            end
+        end
+        best_point = sum(broadcast(*, weights, simplex._))
+        cache.closest_point = dot(weights, cache.simplex_points)
+
         # @show simplex weights
         direction = -best_point
         direction_in_A = rotAinv * direction
@@ -143,7 +178,6 @@ function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformatio
             support_vector_max(cache.bodyA, direction_in_A, starting_vertex.a),
             support_vector_max(cache.bodyB, -direction_in_B, starting_vertex.b))
         improved_point = poseA(value(improved_vertex.a)) - poseB(value(improved_vertex.b))
-        # @show direction best_point improved_point
         score = dot(improved_point, direction)
         if score <= dot(best_point, direction) + atol
             break
@@ -155,20 +189,32 @@ function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformatio
                 cache.simplex_points[worst_vertex_index] = improved_vertex
                 simplex._[worst_vertex_index] = improved_point
             end
-            weights = projection_weights(origin, simplex)
-            length(weights) > N && all(weights .>= 0) && break
-            for i in length(weights):-1:1
-                if weights[i] <= atol
-                    deleteat!(weights, i)
-                    deleteat!(simplex, i)
-                    deleteat!(cache.simplex_points, i)
-                end
-            end
-            best_point = sum(broadcast(*, weights, simplex._))
         end
     end
-    cache.closest_point = dot(weights, cache.simplex_points)
-    cache.closest_point, norm(best_point)
+    simplex, norm(best_point), in_interior
+end
+
+function signed_distance!(cache::CollisionCache, poseA::Transformation, poseB::Transformation)
+    signed_distance!(dimension(cache.bodyA), cache, poseA, poseB)
+end
+
+function signed_distance!{N}(dim::Type{Val{N}}, cache::CollisionCache, poseA::Transformation, poseB::Transformation)
+    simplex, separation, in_collision = gjk!(dim, cache, poseA, poseB)
+
+    if in_collision
+        gt.with_immutable(simplex) do s
+            const origin = zero(gt.Vec{N, Float64})
+            _, penetration_distance = gt.argmax(1:length(s)) do i
+                face = gt.simplex_face(s, i)
+                weights, _ = projection_weights(origin, face)
+                distance_to_face = norm(sum(face[i] * weights[i] for i in 1:length(face)))
+                -distance_to_face
+            end
+            return penetration_distance
+        end
+    else
+        return separation
+    end
 end
 
 end
