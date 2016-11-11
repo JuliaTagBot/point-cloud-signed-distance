@@ -3,7 +3,7 @@ module Gjk2
 import GeometryTypes
 const gt = GeometryTypes
 import CoordinateTransformations: Transformation, transform_deriv
-import StaticArrays: SVector
+import StaticArrays: SVector, MVector, SMatrix
 import Base: dot, zero, +, @pure
 
 abstract Annotated{P}
@@ -105,33 +105,103 @@ function support_vector_max{N, T}(mesh::gt.HomogenousMesh{gt.Point{N, T}}, direc
     Tagged(best_vec)
 end
 
-@inline function projection_weights(p::gt.Vec, q::gt.Vec)
-    [1.0], false
-end
-@inline function projection_weights{T}(pt::T, s::gt.Simplex{1})
-    [1.0], false
+function pinvli(mat::AbstractArray)
+    @assert size(mat, 1) >= size(mat, 2)
+    inv(mat' * mat) * mat'
 end
 
-function projection_weights{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
-    w = convert(Vector, gt.weights(pt, s))
+typealias Simplex{M, N, T} Union{MVector{M, SVector{N, T}}, SVector{M, SVector{N, T}}}
+typealias SimplexType{M, N, T} Union{Type{MVector{M, SVector{N, T}}}, Type{SVector{M, SVector{N, T}}}}
 
-    @inbounds for i in 1:length(w)
-        if w[i] < 0
-            w_face, _ = projection_weights(pt, gt.simplex_face(s, i))
-            w[i] = 0
-            w[1:(i-1)] = w_face[1:(i-1)]
-            w[(i+1):end] = w_face[i:end]
-            return w, false
-        end
+@generated function edgespan{N, M, T}(simplex::Simplex{M, N, T})
+    edgespan_impl(simplex)
+end
+
+function edgespan_impl{N, M, T}(simplex::SimplexType{M, N, T})
+    Expr(:call, :(SMatrix{$N, $(M - 1)}),
+        [:(simplex[$i][$j] - simplex[1][$j]) for i in 2:M for j in 1:N]...)
+end
+
+
+@generated function weights{N, T1, T2}(pt::SVector{N, T1}, simplex::Simplex{1, N, T2})
+    T = promote_type(T1, T2)
+    :(SVector{1, $T}(one($T)))
+end
+
+@generated function weights{N, M, T1, T2}(pt::SVector{N, T1}, simplex::Simplex{M, N, T2})
+    weights_impl(pt, simplex)
+end
+
+function weights_impl{N, M, T1, T2}(pt::Type{SVector{N, T1}}, simplex::SimplexType{M, N, T2})
+    expr = quote
+        span = edgespan(simplex)
+        w = pinvli(span) * (pt - simplex[1])
     end
-    w, length(s) > length(pt)
+    push!(expr.args, Expr(:call, :(SVector{$M, $(promote_type(T1, T2))}), :(1 - sum(w)), [:(w[$i]) for i in 1:(M - 1)]...))
+    expr
 end
 
-function projection_weights(pt, fs::gt.FlexibleSimplex)
-    gt.with_immutable(fs) do s
-        projection_weights(pt, s)
-    end
+# @inline function projection_weights(p::gt.Vec, q::gt.Vec)
+#     [1.0], false
+# end
+# @inline function projection_weights{T}(pt::T, s::gt.Simplex{1})
+#     [1.0], false
+# end
+#
+
+@generated function simplex_face{N, M, T}(simplex::Simplex{M, N, T}, i::Integer)
+    simplex_face_impl(simplex, i)
 end
+
+function simplex_face_impl{N, M, T}(simplex::SimplexType{M, N, T}, i)
+    Expr(:call, :(SVector{$(M - 1), SVector{$N, $T}}),
+        [:(i > $j ? simplex[$j] : simplex[$(j+1)]) for j in 1:(M - 1)]...)
+end
+
+@generated function projection_weights{N, M, T1, T2}(pt::SVector{N, T1}, simplex::Simplex{M, N, T2})
+    projection_weights_impl(pt, simplex)
+end
+
+function projection_weights_impl{N, M, T1, T2}(pt::Type{SVector{N, T1}}, simplex::SimplexType{M, N, T2})
+    T = promote_type(T1, T2)
+    expr = quote
+        w = weights(pt, simplex)
+    end
+    for i in 1:M
+        push!(expr.args, quote
+            if w[$i] < 0
+                face = simplex_face(simplex, $i)
+                w_face = projection_weights(pt, face)
+                return $(Expr(:call, :(SVector{$M, $T}), [:(w_face[$j]) for j in 1:(i-1)]..., :(zero($T)), [:(w_face[$(j-1)]) for j in (i+1):M]...))
+            end
+        end)
+    end
+    push!(expr.args, quote
+        return w
+    end)
+    expr
+end
+
+# function projection_weights{T}(pt::T, s::gt.Simplex, best_sqd=eltype(T)(Inf))
+#     w = convert(Vector, gt.weights(pt, s))
+#
+#     @inbounds for i in 1:length(w)
+#         if w[i] < 0
+#             w_face, _ = projection_weights(pt, gt.simplex_face(s, i))
+#             w[i] = 0
+#             w[1:(i-1)] = w_face[1:(i-1)]
+#             w[(i+1):end] = w_face[i:end]
+#             return w, false
+#         end
+#     end
+#     w, length(s) > length(pt)
+# end
+#
+# function projection_weights(pt, fs::gt.FlexibleSimplex)
+#     gt.with_immutable(fs) do s
+#         projection_weights(pt, s)
+#     end
+# end
 
 function gjk!(cache::CollisionCache, poseA::Transformation, poseB::Transformation)
     gjk!(dimension(cache.bodyA), cache, poseA, poseB)
