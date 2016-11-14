@@ -4,11 +4,11 @@ using StaticArrays
 import GeometryTypes
 const gt = GeometryTypes
 
-@generated function projection_weights!{M, N, T}(simplex::SVector{M, SVector{N, T}}, deltas)
-    projection_weights_impl!(simplex, deltas)
+@generated function projection_weights!{M, N, T}(simplex::SVector{M, SVector{N, T}})
+    projection_weights_impl!(simplex)
 end
 
-function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, deltas)
+function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}})
     num_subsets = 2^M - 1
     complements = falses(M, num_subsets)
     subsets = falses(M, num_subsets)
@@ -20,12 +20,13 @@ function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, de
     end
 
     expr = quote
-        # deltas = SVector{15}(MVector{4, Float64}[zeros(4) for i in 1:15])
+        deltas = $(Expr(:call, :(SVector{$num_subsets, SVector{$M, $T}}), [:(zeros(SVector{$M, $T})) for i in 1:num_subsets]...))
     end
+
 
     for i in 1:M
         push!(expr.args, quote
-            deltas[$(2^(i - 1))][$i] = 1
+            deltas = setindex(deltas, setindex(deltas[$(2^(i - 1))], 1, $i), $(2^(i - 1)))
         end)
     end
 
@@ -36,14 +37,20 @@ function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, de
         end)
         for j in (1:M)[complements[:,s]]
             s2 = s + (1 << (j - 1))
+            push!(expr.args, quote
+                d = deltas[$s2][$j]
+            end)
             for i in (1:M)[subsets[:,s]]
                 push!(expr.args, quote
-                    deltas[$s2][$j] += deltas[$s][$i] *
+                    d += deltas[$s][$i] *
                     (dot(simplex[$i], simplex[$k]) - dot(simplex[$i], simplex[$j]))
                 end)
             end
             push!(expr.args, quote
-                if deltas[$s2][$j] > 0
+                deltas = setindex(deltas, setindex(deltas[$s2], d, $j), $s2)
+            end)
+            push!(expr.args, quote
+                if d > 0
                     viable = false
                 end
             end)
@@ -53,13 +60,11 @@ function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, de
             [:(deltas[$s][$i] >= 0) for i in (1:M)[subsets[:,s]]]...)))
             if viable
                 return deltas[$s] ./ sum(deltas[$s])
-#                 return deltas[$s]
             end
         end)
     end
     push!(expr.args, quote
         return deltas[$num_subsets] ./ sum(deltas[$num_subsets])
-#         return deltas[end]
     end)
     return expr
 end
