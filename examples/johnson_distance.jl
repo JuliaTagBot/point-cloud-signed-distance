@@ -4,8 +4,8 @@ using StaticArrays
 import GeometryTypes
 const gt = GeometryTypes
 
-@generated function projection_weights!{M, N, T}(simplex::SVector{M, SVector{N, T}}, deltas, viable)
-    projection_weights_impl!(simplex, deltas, viable)
+@generated function projection_weights!{M, N, T}(simplex::SVector{M, SVector{N, T}}, deltas)
+    projection_weights_impl!(simplex, deltas)
 end
 
 function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, deltas)
@@ -20,8 +20,7 @@ function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, de
     end
 
     expr = quote
-#         deltas = zeros(MMatrix{$M, $num_subsets, $T})
-#         viable = ones(MVector{$num_subsets, Bool})
+        # deltas = SVector{15}(MVector{4, Float64}[zeros(4) for i in 1:15])
     end
 
     for i in 1:M
@@ -32,24 +31,27 @@ function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}}, de
 
     for s in 1:(num_subsets - 1)
         k = first((1:M)[subsets[:,s]])
+        push!(expr.args, quote
+            viable = true
+        end)
         for j in (1:M)[complements[:,s]]
             s2 = s + (1 << (j - 1))
-            push!(expr.args, quote
-                @inbounds for i in $((1:M)[subsets[:,s]])
-                    deltas[$s2][$j] += deltas[$s][i] *
-                    (dot(simplex[i], simplex[$k]) - dot(simplex[i], simplex[$j]))
-                end
-            end)
+            for i in (1:M)[subsets[:,s]]
+                push!(expr.args, quote
+                    deltas[$s2][$j] += deltas[$s][$i] *
+                    (dot(simplex[$i], simplex[$k]) - dot(simplex[$i], simplex[$j]))
+                end)
+            end
             push!(expr.args, quote
                 if deltas[$s2][$j] > 0
-                    viable[$s] = false
-                elseif deltas[$s2][$j] < 0
-                    viable[$s2] = false
+                    viable = false
                 end
             end)
         end
         push!(expr.args, quote
-            if viable[$s]
+            viable = viable && all($(Expr(:tuple,
+            [:(deltas[$s][$i] >= 0) for i in (1:M)[subsets[:,s]]]...)))
+            if viable
                 return deltas[$s] ./ sum(deltas[$s])
 #                 return deltas[$s]
             end
