@@ -1,23 +1,28 @@
 module jd
 
 using StaticArrays
-import GeometryTypes
-const gt = GeometryTypes
 
 @generated function projection_weights!{M, N, T}(simplex::SVector{M, SVector{N, T}})
     projection_weights_impl!(simplex)
 end
 
-function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}})
-    num_subsets = 2^M - 1
-    complements = falses(M, num_subsets)
-    subsets = falses(M, num_subsets)
+num_johnson_subsets(simplex_length::Integer) = 2^simplex_length - 1
+
+function johnson_subsets(simplex_length::Integer)
+    num_subsets = num_johnson_subsets(simplex_length)
+    subsets = falses(simplex_length, num_subsets)
     for i in 1:num_subsets
-        for j in 1:M
+        for j in 1:simplex_length
             subsets[j, i] = (i >> (j - 1)) & 1
-            complements[j, i] = !subsets[j, i]
         end
     end
+    subsets
+end
+
+function projection_weights_impl!{M, N, T}(::Type{SVector{M, SVector{N, T}}})
+    num_subsets = num_johnson_subsets(M)
+    subsets = johnson_subsets(M)
+    complements = !subsets
 
     expr = quote
         deltas = $(Expr(:call, :(SVector{$num_subsets, SVector{$M, $T}}), [:(zeros(SVector{$M, $T})) for i in 1:num_subsets]...))
