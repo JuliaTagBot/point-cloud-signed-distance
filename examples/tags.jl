@@ -5,15 +5,21 @@ end
 
 Tagged{P}(point::P) = Tagged(point, nothing)
 
+*(n::Number, t::Tagged) = n * value(t)
+
 value(t::Tagged) = t.point
 
 function any_inside(geometry)
+    any_inside(dimension(geometry), geometry)
+end
+
+function any_inside{N}(::Type{Val{N}}, geometry)
     point = gt.any_inside(geometry)
-    Tagged(point)
+    Tagged(convert(SVector{N}, point...))
 end
 
 function any_inside{N, T}(mesh::gt.AbstractMesh{gt.Point{N, T}})
-    point = convert(gt.Vec{N, T}, gt.vertices(mesh)[1])
+    point = convert(SVector{N, T}, first(gt.vertices(mesh))...)
     Tagged(point)
 end
 

@@ -43,4 +43,4 @@ function AcceleratedMesh{N, T}(mesh::gt.AbstractMesh{gt.Point{N, T}})
     AcceleratedMesh{N, T, typeof(mesh)}(mesh, neighbors)
 end
 
-any_inside{N, T}(mesh::AcceleratedMesh{N, T}) = Tagged(gt.Vec{N, T}(gt.vertices(mesh.mesh)[1]), 1)
+any_inside{N, T}(mesh::AcceleratedMesh{N, T}) = Tagged(SVector{N, T}( first(gt.vertices(mesh.mesh))...), 1)
