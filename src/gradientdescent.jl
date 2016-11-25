@@ -4,7 +4,7 @@ import Flash
 import Flash: Manipulator, ManipulatorState
 import Base: normalize!
 
-const deformation_cost_weight = 1
+const default_deformation_cost_weight = 10
 
 function Base.flatten(state::ManipulatorState)
     vcat(state.mechanism_state.q, state.deformation_data)
@@ -25,7 +25,8 @@ end
 normalize!(state::MechanismState, joint) = normalize!(state, joint, joint.jointType)
 normalize!(state::MechanismState) = foreach(joint -> normalize!(state, joint), joints(state.mechanism))
 
-function cost(state::ManipulatorState, sensed_points::AbstractArray)
+function cost(state::ManipulatorState, sensed_points::AbstractArray,
+              deformation_cost_weight=default_deformation_cost_weight)
     normalize!(state.mechanism_state)
     skin = Flash.skin(state)
     c = sum(point -> skin(point)^2, sensed_points)

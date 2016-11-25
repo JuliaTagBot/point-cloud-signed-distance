@@ -6,18 +6,26 @@ using RigidBodyDynamics
 import RigidBodyTreeInspector
 import Flash
 import Flash: BodyGeometry, Manipulator
-import GeometryTypes: vertices
+import GeometryTypes: vertices, AbstractMesh
+import CoordinateTransformations: IdentityTransformation,
+                                  AbstractAffineMap,
+                                  transform_deriv
+import EnhancedGJK
+import Rotations
+import Quaternions
 
 typealias Point3DS{T} Point3D{SVector{3, T}}
 
 function two_link_arm(deformable::Bool=false)
-    geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
+    surfaces = Vector{BodyGeometry}()
 
     link_length = 1.0
     radius = 0.1
 
     mechanism = Mechanism(RigidBody{Float64}("world"))
     parent = root_body(mechanism)
+    surface_points = Vector{Point3DS{Float64}}()
+    skeleton_points = Vector{Point3DS{Float64}}()
 
     for i = 1:2
         joint = Joint("joint$(i)", Revolute(SVector{3,Float64}(0,0,1)))
@@ -31,35 +39,39 @@ function two_link_arm(deformable::Bool=false)
         attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
         parent = body
 
-        surface_points = Vector{Point3DS{Float64}}()
-        skeleton_points = Vector{Point3DS{Float64}}()
-        for x = linspace(0.1*link_length, 0.9*link_length, 3)
+        for x = linspace(0.3*link_length, 0.7*link_length, 3)
             for y = [-radius; radius]
                 for z = [-radius; radius]
                     push!(surface_points, Point3D(body.frame, SVector(x, y, z)))
                 end
             end
+            y = 0.0
+            for z = [-sqrt(2) * radius, sqrt(2) * radius]
+                push!(surface_points, Point3D(body.frame, SVector(x, y, z)))
+            end
+
         end
         if i == 1
+            for z = [-sqrt(2) * radius, sqrt(2) * radius]
+                push!(surface_points, Point3D(body.frame,
+                    SVector(link_length, 0, z)))
+            end
             push!(surface_points, Point3D(body.frame, SVector(0., 0, 0)))
         elseif i == 2
             push!(surface_points, Point3D(body.frame, SVector(link_length, 0., 0)))
         end
-        # surface_geometry = HomogenousMesh(surface_points, convex_hull(surface_points))
-        # surface_geometry_data = GeometryData(surface_geometry, tformeye(3))
 
         for x = linspace(0.2*link_length, 0.8*link_length, 3)
             push!(skeleton_points, Point3D(body.frame, SVector(x, 0., 0)))
         end
-
-        geometries[body] = BodyGeometry(surface_points, skeleton_points)
     end
+    push!(surfaces, Flash.RigidInterpolatingSkin(surface_points, skeleton_points))
 
-    Manipulator(mechanism, [Flash.Surface(geometries, deformable? Flash.DeformableSkin() : Flash.RigidSkin())])
+    Manipulator(mechanism, surfaces)
 end
 
 function beanbag()
-    geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
+    # geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
 
     mechanism = Mechanism(RigidBody{Float64}("world"))
     parent = root_body(mechanism)
@@ -79,13 +91,14 @@ function beanbag()
             push!(surface_points, Point3D(body.frame, SVector(x...)))
         end
     end
-    geometries[body] = BodyGeometry(surface_points, skeleton_points)
-
-    Manipulator(mechanism, [Flash.Surface(geometries, Flash.DeformableSkin())])
+    # geometries[body] = BodyGeometry(surface_points, skeleton_points)
+    surfaces = Flash.BodyGeometry[Flash.DeformableInterpolatingSkin(surface_points,
+                                                  skeleton_points)]
+    Manipulator(mechanism, surfaces)
 end
 
 function squishable()
-    geometries = OrderedDict{RigidBody{Float64}, BodyGeometry{Float64}}()
+    surfaces = Vector{BodyGeometry}()
 
     mechanism = Mechanism(RigidBody{Float64}("world"))
     parent = root_body(mechanism)
@@ -118,22 +131,33 @@ function squishable()
             end
         end
     end
-    geometries[body] = BodyGeometry(surface_points, skeleton_points)
-    Manipulator(mechanism, [Flash.Surface(geometries, Flash.DeformableSkin())])
+    surfaces = BodyGeometry[Flash.DeformableInterpolatingSkin(surface_points, skeleton_points)]
+    Manipulator(mechanism, surfaces)
 end
 
+to_quaternion(::UniformScaling) = Quaternions.Quaternion(1.0, 0, 0, 0)
+to_quaternion(::IdentityTransformation) = Quaternions.Quaternion(1.0, 0, 0, 0)
+to_quaternion(transform::AbstractAffineMap) = to_quaternion(transform_deriv(transform, SVector(0., 0., 0.)))
+function to_quaternion(mat::AbstractMatrix)
+    quat = Rotations.Quat(mat)
+    Quaternions.Quaternion(quat.w, quat.x, quat.y, quat.z)
+end
+
+"""
+Convert geometry to a form better suited for collision checks.
+For most geometries this is a no-op
+"""
+collision_geometry(geometry) = geometry
+
+collision_geometry(mesh::AbstractMesh) = EnhancedGJK.NeighborMesh(mesh)
+
 function extract_convex_surfaces(mechanism, vis_data)
-    surfaces = Vector{Flash.Surface{Float64}}()
-    for (i, node) in enumerate(mechanism.toposortedTree)
-        body = node.vertexData
-        if length(vis_data[i].geometry_data) > 0
-            mesh = vis_data[i].geometry_data[1].geometry
-            tform = vis_data[i].geometry_data[1].transform
-            verts = vertices(mesh)
-            surface_points = [Point3D(body.frame, tform(SVector{3, Float64}(v...))) for v in verts]
-            skeleton_points = Vector{Point3DS{Float64}}()
-            geometries = OrderedDict(body => Flash.BodyGeometry(surface_points, skeleton_points))
-            push!(surfaces, Flash.Surface(geometries, Flash.RigidPolytope()))
+    surfaces = Vector{Flash.BodyGeometry}()
+    for (frame, link) in vis_data
+        for geometrydata in link
+            @assert geometrydata.transform == IdentityTransformation()
+            push!(surfaces, Flash.ConvexGeometry(
+                collision_geometry(geometrydata.geometry), frame))
         end
     end
     surfaces
