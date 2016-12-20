@@ -143,21 +143,12 @@ function to_quaternion(mat::AbstractMatrix)
     Quaternions.Quaternion(quat.w, quat.x, quat.y, quat.z)
 end
 
-"""
-Convert geometry to a form better suited for collision checks.
-For most geometries this is a no-op
-"""
-collision_geometry(geometry) = geometry
-
-collision_geometry(mesh::AbstractMesh) = EnhancedGJK.NeighborMesh(mesh)
-
 function extract_convex_surfaces(mechanism, vis_data)
     surfaces = Vector{Flash.BodyGeometry}()
     for (frame, link) in vis_data
         for geometrydata in link
             @assert geometrydata.transform == IdentityTransformation()
-            push!(surfaces, Flash.ConvexGeometry(
-                collision_geometry(geometrydata.geometry), frame))
+            push!(surfaces, Flash.ConvexGeometry(geometrydata.geometry, frame))
         end
     end
     surfaces

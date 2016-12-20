@@ -16,6 +16,8 @@ import ForwardDiff: value
 import DataStructures: OrderedDict
 import Base: convert, flatten, show
 using EnhancedGJK
+import AdaptiveDistanceFields
+const adf = AdaptiveDistanceFields
 
 # convert(::Type{AffineMap}, T::Transform3D) = AffineMap(RigidBodyDynamics.rotationmatrix_normalized_fsa(T.rot), T.trans)
 
@@ -42,9 +44,24 @@ immutable RigidInterpolatingSkin{T} <: InterpolatingGeometry
     skeleton_points::Vector{Point3D{SVector{3, T}}}
 end
 
-immutable ConvexGeometry{GeomType} <: BodyGeometry
+immutable ConvexGeometry{GeomType, F} <: BodyGeometry
     geometry::GeomType
     frame::CartesianFrame3D
+    distancefield::F
+end
+
+function ConvexGeometry{G}(geom::G, frame::CartesianFrame3D)
+    sdf = adf.ConvexMesh.signed_distance(geom)
+    lb = minimum(vertices(geom))
+    ub = maximum(vertices(geom))
+    origin = lb - 2 * (ub - lb)
+    widths = 4 * (ub - lb)
+    field = adf.AdaptiveDistanceField(sdf,
+        SVector{3, Float64}(origin[1], origin[2], origin[3]),
+        SVector{3, Float64}(widths[1], widths[2], widths[3]),
+        5e-2,
+        5e-2)
+    ConvexGeometry(geom, frame, field)
 end
 #
 #
