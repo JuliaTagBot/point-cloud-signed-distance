@@ -16,16 +16,16 @@ FileIO
 MathProgBase
 Ipopt
 MeshIO 0.0.6
-RigidBodyDynamics 0.0.3
+RigidBodyDynamics 0.0.4
 GeometryTypes 0.2.1
+RegionTrees 0.0.1
 
-
-git@github.com:rdeits/PyLCM.jl.git f74bb6a539fa3601c2f509c76b291d107bb5ed33
+git@github.com:rdeits/LCMCore.jl.git 78b4bd026765e2436e2365b020fb6f6a393d9f5d
+git@github.com:rdeits/PyLCM.jl.git 641d3c5aac07bac950c37fb42d631272cdad9dfb
 git@github.com:rdeits/SpatialFields.jl.git 06046c2752e3de1cc72c3723102063458bd41264
 git@github.com:rdeits/SimpleGradientDescent.jl.git 0fcc1f95f3f20a86caa22e80937667f01897253b
 git@github.com:rdeits/BotCoreLCMTypes.jl.git 197532f17b0a74f3be6c52dfc0f9afb1f75717a5
 git@github.com:rdeits/EnhancedGJK.jl.git 901f0d9363488bd376e5b4460da9cb03d2e9d72d
-git@github.com:rdeits/RigidBodyTreeInspector.jl.git d3d83cd12c7d13391df07a43dffb862115ba44da
-git@github.com:rdeits/DrakeVisualizer.jl.git 4a4aca7ea7b1097e2cfc6bb8c038902dc49f3815
-git@github.com:rdeits/RegionTrees.jl.git c8f7b9bc9a8cff5da406907392dda8358726f185
+git@github.com:rdeits/RigidBodyTreeInspector.jl.git 9c2ff4085a8b88036cfce37a249a66dab84af326
+git@github.com:rdeits/DrakeVisualizer.jl.git 098498c723ff8bf8ba5b7b9679d30de9442807b3
 git@github.com:rdeits/AdaptiveDistanceFields.jl.git fb35f0146fc063230563d043c2aa327cd7abfa92

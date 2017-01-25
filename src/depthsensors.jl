@@ -1,9 +1,10 @@
 module DepthSensors
 
 using CoordinateTransformations
-using LCMGL
-import StaticArrays: SVector
+using StaticArrays: SVector
 import Flash
+using DrakeVisualizer: Visualizer, PointCloud, batch, load!
+using ColorTypes: RGB
 
 export Kinect, raycast_depths, raycast_points
 
@@ -33,21 +34,18 @@ type DepthSensor
     rays::Array{SVector{3, Float64}, 2}
 end
 
-function draw_rays(lcmgl::LCMGLClient, sensor::DepthSensor, tform::Transformation)
+function draw_rays(vis::Visualizer, sensor::DepthSensor, tform::Transformation)
     camera_origin = tform(SVector(0., 0, 0))
-    color(lcmgl, 0, 1, 0)
-    begin_mode(lcmgl, LCMGL.LINES)
-    for ray in rays_in_world(sensor, tform)
-        vertex(lcmgl, camera_origin...)
-        vertex(lcmgl, (camera_origin + ray)...)
-    end
-    end_mode(lcmgl)
-end
-
-function draw_rays(sensor::DepthSensor, tform::Transformation)
-    LCMGLClient("sensor_rays") do lcmgl
-        draw_rays(lcmgl, sensor, tform)
-        switch_buffer(lcmgl)
+    batch(vis) do v
+        cloud = PointCloud(SVector{3, Float64}[])
+        cloud.channels[:rgb] = RGB{Float64}[]
+        push!(cloud.points, camera_origin)
+        push!(cloud.channels[:rgb], RGB(1, 0, 0))
+        for ray in rays_in_world(sensor, tform)
+            push!(cloud.points, camera_origin + ray)
+            push!(cloud.channels[:rgb], RGB(0, 1, 0))
+        end
+        load!(v, cloud)
     end
 end
 
@@ -115,23 +113,6 @@ end
 function raycast(state::Flash.ManipulatorState, sensor::DepthSensor, sensor_tform::Union{AbstractAffineMap, IdentityTransformation})
     surface = Flash.skin(state)
     raycast_points(surface, sensor, sensor_tform)
-end
-
-function draw_points(lcmgl::LCMGLClient, points::AbstractArray)
-    LCMGL.color(lcmgl, 0, 1, 0)
-    point_size(lcmgl, 5)
-    begin_mode(lcmgl, LCMGL.POINTS)
-    for point in points
-        vertex(lcmgl, convert(Vector, point)...)
-    end
-    end_mode(lcmgl)
-end
-
-function draw_points(points::AbstractArray)
-    LCMGLClient("raycast") do lcmgl
-        draw_points(lcmgl, points)
-        switch_buffer(lcmgl)
-    end
 end
 
 end
