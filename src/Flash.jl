@@ -1,6 +1,6 @@
 module Flash
 
-import DrakeVisualizer: contour_mesh, draw, Visualizer, GeometryData
+import DrakeVisualizer: contour_mesh, Visualizer, GeometryData
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!
 using LCMGL

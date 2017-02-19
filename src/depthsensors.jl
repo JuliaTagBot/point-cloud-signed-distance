@@ -3,8 +3,9 @@ module DepthSensors
 using CoordinateTransformations
 using StaticArrays: SVector
 import Flash
-using DrakeVisualizer: Visualizer, PointCloud, batch, load!
+using DrakeVisualizer: Visualizer, PointCloud, batch, setgeometry!
 using ColorTypes: RGB
+import ForwardDiff
 
 export Kinect, raycast_depths, raycast_points
 
@@ -45,7 +46,7 @@ function draw_rays(vis::Visualizer, sensor::DepthSensor, tform::Transformation)
             push!(cloud.points, camera_origin + ray)
             push!(cloud.channels[:rgb], RGB(0, 1, 0))
         end
-        load!(v, cloud)
+        setgeometry!(v, cloud)
     end
 end
 
