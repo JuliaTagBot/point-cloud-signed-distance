@@ -18,7 +18,7 @@ end
 
 normalize!(state::MechanismState, joint, jointType::JointType) = ()
 function normalize!(state::MechanismState, joint, jointType::QuaternionFloating)
-    q_range = state.mechanism.qRanges[joint][1:4]
+    q_range = RigidBodyDynamics.configuration_range(state, joint)[1:4]
     q_view = view(state.q, q_range)
     q_view .= q_view ./ norm(q_view)
 end

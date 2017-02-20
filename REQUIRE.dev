@@ -2,6 +2,7 @@ julia 0.5
 DataFrames
 Plots
 GR
+StatPlots
 ProfileView
 Interpolations
 StaticArrays 0.1.0

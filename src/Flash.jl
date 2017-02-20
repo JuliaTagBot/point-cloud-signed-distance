@@ -1,22 +1,28 @@
 module Flash
 
-import DrakeVisualizer: contour_mesh, Visualizer, GeometryData
+import Base: convert, flatten, show
+import DrakeVisualizer: contour_mesh,
+                        Visualizer,
+                        GeometryData,
+                        setgeometry!,
+                        settransform!,
+                        PointCloud
 using RigidBodyDynamics
 import RigidBodyDynamics: set_configuration!
 using LCMGL
 import GeometryTypes
 import GeometryTypes: HomogenousMesh, Vec, vertices
-import SpatialFields: InterpolatingSurface, XSquaredLogX, XCubed
-import StaticArrays: SVector, @SVector, MVector
+using SpatialFields: InterpolatingSurface, XSquaredLogX, XCubed
+using StaticArrays: SVector, @SVector, MVector
 using CoordinateTransformations
 using Rotations
 import ColorTypes
 import ForwardDiff
 import ForwardDiff: value
-import DataStructures: OrderedDict
-import Base: convert, flatten, show
+using DataStructures: OrderedDict
 using EnhancedGJK
 import AdaptiveDistanceFields
+import RigidBodyTreeInspector
 const adf = AdaptiveDistanceFields
 
 # convert(::Type{AffineMap}, T::Transform3D) = AffineMap(RigidBodyDynamics.rotationmatrix_normalized_fsa(T.rot), T.trans)
@@ -247,23 +253,56 @@ end
 #
 # (surface::SimplexSurface{T}){T}(x) = GeometryTypes.gjk(surface.simplex, Vec{3, T}(x[1], x[2], x[3]))
 
-immutable ConvexSurface{C <: CollisionCache, T <: Transformation} <: Function
-    cache::C
-    geometry_pose::T
+# immutable ConvexSurface{C <: CollisionCache, T <: Transformation} <: Function
+#     cache::C
+#     geometry_pose::T
+# end
+#
+# (surface::ConvexSurface)(x) = gjk!(surface.cache,
+#                                    surface.geometry_pose,
+#                                    Translation(SVector(x[1], x[2], x[3]))
+#                                    ).signed_distance
+#
+# function skin(state::ManipulatorState, surface::ConvexGeometry)
+#     cache = CollisionCache(surface.geometry, zeros(SVector{3, Float64}))
+#     root = root_frame(state.manipulator.mechanism)
+#     poseA = RigidBodyDynamics.transform_to_root(state.mechanism_state, surface.frame)
+#     ConvexSurface(cache, convert(AffineMap, poseA))
+# end
+
+immutable ConvexSurface{G <: ConvexGeometry, S <: MechanismState}
+    geometry::G
+    state::S
 end
 
-(surface::ConvexSurface)(x) = gjk!(surface.cache,
-                                   surface.geometry_pose,
-                                   Translation(SVector(x[1],
-                                                       x[2],
-                                                       x[3]))
-                                   ).signed_distance
-
 function skin(state::ManipulatorState, surface::ConvexGeometry)
-    cache = CollisionCache(surface.geometry, zeros(SVector{3, Float64}))
-    root = root_frame(state.manipulator.mechanism)
-    poseA = RigidBodyDynamics.transform_to_root(state.mechanism_state, surface.frame)
-    ConvexSurface(cache, convert(AffineMap, poseA))
+    ConvexSurface(surface, state.mechanism_state)
+end
+
+function (surface::ConvexSurface)(x)
+    world_frame = default_frame(root_body(surface.state.mechanism))
+    p = Point3D(world_frame, x)
+    surface.geometry.distancefield(RigidBodyDynamics.transform(p, relative_transform(surface.state, world_frame, surface.geometry.frame)).v)
+end
+
+function drawing_region(surface::ConvexSurface)
+    interior_point = EnhancedGJK.any_inside(surface.geometry)
+    lb = zeros(MVector{3, Float64})
+    ub = zeros(MVector{3, Float64})
+    for i in 1:3
+        direction = zeros(MVector{3, Float64})
+        direction[i] = 1
+        ub[i] = EnhancedGJK.value(
+                    EnhancedGJK.support_vector_max(surface.geometry,
+                                                   direction,
+                                                   interior_point))[i]
+        lb[i] = EnhancedGJK.value(
+                    EnhancedGJK.support_vector_max(surface.geometry,
+                                                   -direction,
+                                                   interior_point))[i]
+    end
+    widths = ub - lb
+    lb - 0.1 * widths, ub + 0.1 * widths
 end
 
 # function skin{P, T}(state::ManipulatorState{P, T, T}, surface::Surface, surf_type::RigidPolytope)
@@ -291,59 +330,142 @@ function drawing_region(surface::InterpolatingSurface)
     lb - 0.5 * widths, ub + 0.5 * widths
 end
 
-function drawing_region(surface::ConvexSurface)
-    interior_point = EnhancedGJK.any_inside(surface.cache.bodyA)
-    lb = zeros(MVector{3, Float64})
-    ub = zeros(MVector{3, Float64})
-    for i in 1:3
-        direction = zeros(MVector{3, Float64})
-        direction[i] = 1
-        ub[i] = EnhancedGJK.value(
-                    EnhancedGJK.support_vector_max(surface.cache.bodyA,
-                                                   direction,
-                                                   interior_point))[i]
-        lb[i] = EnhancedGJK.value(
-                    EnhancedGJK.support_vector_max(surface.cache.bodyA,
-                                                   -direction,
-                                                   interior_point))[i]
+# function drawing_region(surface::ConvexSurface)
+#     interior_point = EnhancedGJK.any_inside(surface.cache.bodyA)
+#     lb = zeros(MVector{3, Float64})
+#     ub = zeros(MVector{3, Float64})
+#     for i in 1:3
+#         direction = zeros(MVector{3, Float64})
+#         direction[i] = 1
+#         ub[i] = EnhancedGJK.value(
+#                     EnhancedGJK.support_vector_max(surface.cache.bodyA,
+#                                                    direction,
+#                                                    interior_point))[i]
+#         lb[i] = EnhancedGJK.value(
+#                     EnhancedGJK.support_vector_max(surface.cache.bodyA,
+#                                                    -direction,
+#                                                    interior_point))[i]
+#     end
+#     widths = ub - lb
+#     lb - 0.1 * widths, ub + 0.1 * widths
+# end
+
+function setgeometry!(vis::Visualizer, manip::Manipulator)
+    setgeometry!(vis[:mechanism], RigidBodyTreeInspector.create_geometry(manip.mechanism))
+
+    for (i, surface) in enumerate(manip.surfaces)
+        setgeometry!(vis[:surfaces][Symbol(i)], surface)
     end
-    widths = ub - lb
-    lb - 0.1 * widths, ub + 0.1 * widths
 end
 
-function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
-    LCMGLClient("points") do lcmgl
-        for surface in state.manipulator.surfaces
-            point_size(lcmgl, 10)
-            color(lcmgl, 1, 0, 0)
-            begin_mode(lcmgl, LCMGL.POINTS)
-            for point in surface_points(state, surface)
-                vertex(lcmgl, map(value, point)...)
-            end
-            end_mode(lcmgl)
-            color(lcmgl, 0, 0, 1)
-            begin_mode(lcmgl, LCMGL.POINTS)
-            for point in skeleton_points(state, surface)
-                vertex(lcmgl, map(value, point)...)
-            end
-            end_mode(lcmgl)
-        end
-    end
+function setgeometry!(vis::Visualizer, surface::BodyGeometry)
+    setgeometry!(vis, surface.geometry)
+end
 
-    if draw_skin
-        links = Link[]
-        all_surfaces = surfaces(state)
-        for (i, surface) in enumerate(all_surfaces)
-            geometries = []
-            for iso_level = [0.0]
-                lb, ub = drawing_region(surface)
-                push!(geometries, GeometryData(contour_mesh(surface, lb, ub, iso_level, 0.1)))
-            end
-            push!(links, Link(geometries))
-        end
-        Visualizer(links)
+function setgeometry!{T}(vis::Visualizer, surface::RigidInterpolatingSkin{T})
+    points_by_frame = Dict{CartesianFrame3D, PointCloud{SVector{3, T}}}()
+    for point in surface.surface_points
+        push!(get!(points_by_frame, point.frame, PointCloud(SVector{3, T}[])).points, point.v)
+    end
+    for (frame, points) in points_by_frame
+        setgeometry!(vis[:surface_points][RigidBodyTreeInspector.to_link_name(frame)], points)
+    end
+    points_by_frame = Dict{CartesianFrame3D, PointCloud{SVector{3, T}}}()
+    for point in surface.skeleton_points
+        push!(get!(points_by_frame, point.frame, PointCloud(SVector{3, T}[])).points, point.v)
+    end
+    for (frame, points) in points_by_frame
+        setgeometry!(vis[:skeleton_points][RigidBodyTreeInspector.to_link_name(frame)], points)
     end
 end
+
+function setgeometry!{T}(vis::Visualizer, surface::DeformableInterpolatingSkin{T})
+    points_by_frame = Dict{CartesianFrame3D, PointCloud{SVector{3, T}}}()
+    for point in surface.skeleton_points
+        push!(get!(points_by_frame, point.frame, PointCloud(SVector{3, T}[])).points, point.v)
+    end
+    for (frame, points) in points_by_frame
+        setgeometry!(vis[:skeleton_points][RigidBodyTreeInspector.to_link_name(frame)], points)
+    end
+end
+
+function settransform!(vis::Visualizer, state::ManipulatorState)
+    settransform!(vis[:mechanism], state.mechanism_state)
+
+    for (i, surface) in enumerate(state.manipulator.surfaces)
+        settransform!(vis[:surfaces][Symbol(i)], surface, state)
+    end
+end
+
+function settransform!(vis::Visualizer, surface::ConvexGeometry, state::ManipulatorState)
+    settransform!(vis, transform_to_root(state.mechanism_state, surface.frame))
+end
+
+function settransform!(vis::Visualizer, surface::RigidInterpolatingSkin, state::ManipulatorState)
+    frames = Set(p.frame for p in surface.surface_points)
+    for frame in frames
+        settransform!(vis[:surface_points][RigidBodyTreeInspector.to_link_name(frame)], transform_to_root(state.mechanism_state, frame))
+    end
+    frames = Set(p.frame for p in surface.skeleton_points)
+    for frame in frames
+        settransform!(vis[:skeleton_points][RigidBodyTreeInspector.to_link_name(frame)], transform_to_root(state.mechanism_state, frame))
+    end
+end
+
+function draw_skin!(vis::Visualizer, state::ManipulatorState)
+    for (i, surface) in enumerate(state.manipulator.surfaces)
+        draw_skin!(vis[:surfaces][Symbol(i)], surface, state)
+    end
+end
+
+function draw_skin!(vis::Visualizer, surface::BodyGeometry, state::ManipulatorState)
+    contour_surface = skin(state, surface)
+    lb, ub = drawing_region(contour_surface)
+    setgeometry!(vis[:skin], contour_mesh(contour_surface, lb, ub, 0, 0.1))
+end
+
+function settransform!(vis::Visualizer, surface::DeformableInterpolatingSkin, state::ManipulatorState)
+    frames = Set(p.frame for p in surface.skeleton_points)
+    for frame in frames
+        settransform!(vis[:skeleton_points][RigidBodyTreeInspector.to_link_name(frame)], transform_to_root(state.mechanism_state, frame))
+    end
+    surface_pts = surface_points(state, surface)
+    setgeometry!(vis[:surface_points], PointCloud(surface_pts))
+end
+
+# function draw{D, C}(state::ManipulatorState{D, C}, draw_skin::Bool=true)
+#     LCMGLClient("points") do lcmgl
+#         for surface in state.manipulator.surfaces
+#             point_size(lcmgl, 10)
+#             color(lcmgl, 1, 0, 0)
+#             begin_mode(lcmgl, LCMGL.POINTS)
+#             for point in surface_points(state, surface)
+#                 vertex(lcmgl, map(value, point)...)
+#             end
+#             end_mode(lcmgl)
+#             color(lcmgl, 0, 0, 1)
+#             begin_mode(lcmgl, LCMGL.POINTS)
+#             for point in skeleton_points(state, surface)
+#                 vertex(lcmgl, map(value, point)...)
+#             end
+#             end_mode(lcmgl)
+#         end
+#     end
+#
+#     if draw_skin
+#         links = Link[]
+#         all_surfaces = surfaces(state)
+#         for (i, surface) in enumerate(all_surfaces)
+#             geometries = []
+#             for iso_level = [0.0]
+#                 lb, ub = drawing_region(surface)
+#                 push!(geometries, GeometryData(contour_mesh(surface, lb, ub, iso_level, 0.1)))
+#             end
+#             push!(links, Link(geometries))
+#         end
+#         Visualizer(links)
+#     end
+# end
 
 include("depthsensors.jl")
 include("depthdata.jl")

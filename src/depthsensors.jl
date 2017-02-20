@@ -58,18 +58,19 @@ function doRaycast(camera_origin, camera_view_ray, field::Function)
     SAFE_ITER_LIMIT = 60
     dist = 0
     k = 0
-    estimated_gradient = -1
-    sample_point = camera_origin + dist*camera_view_ray
-    last_value = field(sample_point)
-    while (abs(last_value) > EPS && k < SAFE_ITER_LIMIT)
-        step = -last_value / estimated_gradient
+    field_along_ray = x -> field(camera_origin + x * camera_view_ray)
+    value = field_along_ray(dist)
+    while (abs(value) > EPS && k < SAFE_ITER_LIMIT)
+        derivative = ForwardDiff.derivative(field_along_ray, dist)
+        step = value / -derivative
         step = sign(step) * min(SAFE_RATE, abs(step))
         dist += step
-        sample_point = camera_origin + dist * camera_view_ray
-        value = field(sample_point)
-        estimated_gradient = (value - last_value) / step
+        value = field_along_ray(dist)
+        # sample_point = camera_origin + dist * camera_view_ray
+        # value = field(sample_point)
+        # estimated_gradient = (value - last_value) / step
         # @show dist last_value value estimated_gradient step
-        last_value = value
+        # last_value = value
         k += 1
     end
     if abs(field(camera_origin + dist*camera_view_ray)) > 1000*EPS

@@ -30,39 +30,39 @@ function two_link_arm(deformable::Bool=false)
     for i = 1:2
         joint = Joint("joint$(i)", Revolute(SVector{3,Float64}(0,0,1)))
         if i > 1
-            joint_to_parent = Transform3D(joint.frameBefore, parent.frame, SVector{3,Float64}(link_length, 0., 0))
+            joint_to_parent = Transform3D(joint.frameBefore, default_frame(parent), SVector{3,Float64}(link_length, 0., 0))
         else
-            joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
+            joint_to_parent = Transform3D(Float64, joint.frameBefore, default_frame(parent))
         end
         body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body$(i)")))
-        body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
+        body_to_joint = Transform3D(Float64, default_frame(body), joint.frameAfter)
         attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
         parent = body
 
         for x = linspace(0.3*link_length, 0.7*link_length, 3)
             for y = [-radius; radius]
                 for z = [-radius; radius]
-                    push!(surface_points, Point3D(body.frame, SVector(x, y, z)))
+                    push!(surface_points, Point3D(default_frame(body), SVector(x, y, z)))
                 end
             end
             y = 0.0
             for z = [-sqrt(2) * radius, sqrt(2) * radius]
-                push!(surface_points, Point3D(body.frame, SVector(x, y, z)))
+                push!(surface_points, Point3D(default_frame(body), SVector(x, y, z)))
             end
 
         end
         if i == 1
             for z = [-sqrt(2) * radius, sqrt(2) * radius]
-                push!(surface_points, Point3D(body.frame,
+                push!(surface_points, Point3D(default_frame(body),
                     SVector(link_length, 0, z)))
             end
-            push!(surface_points, Point3D(body.frame, SVector(0., 0, 0)))
+            push!(surface_points, Point3D(default_frame(body), SVector(0., 0, 0)))
         elseif i == 2
-            push!(surface_points, Point3D(body.frame, SVector(link_length, 0., 0)))
+            push!(surface_points, Point3D(default_frame(body), SVector(link_length, 0., 0)))
         end
 
         for x = linspace(0.2*link_length, 0.8*link_length, 3)
-            push!(skeleton_points, Point3D(body.frame, SVector(x, 0., 0)))
+            push!(skeleton_points, Point3D(default_frame(body), SVector(x, 0., 0)))
         end
     end
     push!(surfaces, Flash.RigidInterpolatingSkin(surface_points, skeleton_points))
@@ -77,18 +77,18 @@ function beanbag()
     parent = root_body(mechanism)
 
     joint = Joint("joint1", QuaternionFloating{Float64}())
-    joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
+    joint_to_parent = Transform3D(Float64, joint.frameBefore, default_frame(parent))
     body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("body1")))
-    body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
+    body_to_joint = Transform3D(Float64, default_frame(body), joint.frameAfter)
     attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
 
     surface_points = Vector{Point3DS{Float64}}()
-    skeleton_points = [Point3D(body.frame, @SVector [0.0, 0.0, 0.0])]
+    skeleton_points = [Point3D(default_frame(body), @SVector [0.0, 0.0, 0.0])]
     for axis = 1:3
         for s = [-1; 1]
             x = [0., 0, 0]
             x[axis] = s
-            push!(surface_points, Point3D(body.frame, SVector(x...)))
+            push!(surface_points, Point3D(default_frame(body), SVector(x...)))
         end
     end
     # geometries[body] = BodyGeometry(surface_points, skeleton_points)
@@ -104,13 +104,13 @@ function squishable()
     parent = root_body(mechanism)
 
     joint = Joint("joint1", QuaternionFloating{Float64}())
-    joint_to_parent = Transform3D(Float64, joint.frameBefore, parent.frame)
+    joint_to_parent = Transform3D(Float64, joint.frameBefore, default_frame(parent))
     body = RigidBody(rand(SpatialInertia{Float64}, CartesianFrame3D("squishable_body")))
-    body_to_joint = Transform3D(Float64, body.frame, joint.frameAfter)
+    body_to_joint = Transform3D(Float64, default_frame(body), joint.frameAfter)
     attach!(mechanism, parent, joint, joint_to_parent, body, body_to_joint)
 
     surface_points = Vector{Point3DS{Float64}}()
-    skeleton_points = [Point3D(body.frame, @SVector [0.0, 0.0, 0.0])]
+    skeleton_points = [Point3D(default_frame(body), @SVector [0.0, 0.0, 0.0])]
     radii = @SVector [0.44/2, 0.40/2, 0.30/2]
     for axis = 1:3
         for i_sign = [-1, 1]
@@ -126,7 +126,7 @@ function squishable()
                     x[i] = i_sign * sqrt(a^2 * b^2 / (a^2 * tan(theta)^2 + b^2))
                     x[j] = j_sign * sqrt(b^2 * (1 - b^2 / (a^2 * tan(theta)^2 + b^2)))
                     point = SVector(x...)
-                    push!(surface_points, Point3D(body.frame, point))
+                    push!(surface_points, Point3D(default_frame(body), point))
                 end
             end
         end
